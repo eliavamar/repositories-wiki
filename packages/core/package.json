@@ -1,0 +1,19 @@
+{
+  "name": "@repositories-wiki/core",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Shared types, utilities, and constants for repositories-wiki",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "simple-git": "^3.27.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

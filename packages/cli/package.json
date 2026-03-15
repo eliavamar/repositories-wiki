@@ -1,0 +1,20 @@
+{
+  "name": "@repositories-wiki/cli",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "start": "tsx src/cli.ts"
+  },
+  "dependencies": {
+    "@repositories-wiki/core": "1.0.0",
+    "@opencode-ai/sdk": "1.2.24",
+    "opencode-ai": "1.2.26"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0"
+  }
+}

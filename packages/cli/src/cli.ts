@@ -52,7 +52,7 @@ export async function run(): Promise<void> {
     llm: {
       provider: "anthropic",
       model: "claude-sonnet-4-5",
-      apiKey: process.env.ANTHROPIC_API_KEY || "<apiKey>",
+      apiKey: process.env.ANTHROPIC_API_KEY,
     },
   };
 

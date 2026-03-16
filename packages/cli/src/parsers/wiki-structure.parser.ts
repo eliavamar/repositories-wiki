@@ -34,7 +34,9 @@ function extractTag(xml: string, tagName: string): string {
 }
 
 function parsePages(xml: string): WikiPage[] {
-  const pagesSection = xml.match(/<pages>([\s\S]*?)<\/pages>/);
+  // Find the <pages> block that contains actual <page> elements (not <page_ref>)
+  const allPagesMatches = [...xml.matchAll(/<pages>([\s\S]*?)<\/pages>/g)];
+  const pagesSection = allPagesMatches.find(m => m[1]?.includes('<page '));
   if (!pagesSection?.[1]) return [];
 
   const pageMatches = pagesSection[1].matchAll(/<page\s+id="([^"]+)">([\s\S]*?)<\/page>/g);

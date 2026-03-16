@@ -113,7 +113,6 @@ export class CodingAgent {
       baseUrl: this.serverUrl,
       directory: repoPath,
       throwOnError: true,
-      parseAs: "stream"
     });
     this.clients.set(repoPath, client);
     logger.debug("OpenCode client created successfully");
@@ -160,6 +159,9 @@ export class CodingAgent {
     const session: Session | undefined = sessionResponse.data;
     if (!session) {
       throw new Error("Failed to create session");
+    }
+    if(!session.id){
+        throw new Error("Failed to create session: Session create did not return an id");
     }
 
     return session;

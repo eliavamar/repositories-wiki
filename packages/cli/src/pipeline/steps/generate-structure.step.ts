@@ -1,4 +1,4 @@
-import { logger } from "@repositories-wiki/core";
+import { logger, generateFileTree } from "@repositories-wiki/core";
 import type { PipelineContext, PipelineStep } from "../types";
 import { generateWikiStructurePrompt } from "../prompts";
 import { parseWikiStructure } from "../../parsers";
@@ -14,7 +14,10 @@ export class GenerateStructureStep implements PipelineStep {
       throw new Error("agent is required");
     }
 
-    const prompt = generateWikiStructurePrompt(context.repoName, context.commitId);
+    const fileTree = generateFileTree(context.repoPath);
+    logger.debug(`Generated file tree with structure`);
+
+    const prompt = generateWikiStructurePrompt(context.repoName, context.commitId, fileTree);
 
     const response = await context.agent.run({
       repoPath: context.repoPath,

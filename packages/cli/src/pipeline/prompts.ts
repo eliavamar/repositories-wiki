@@ -1,9 +1,17 @@
 import type { WikiPage } from "@repositories-wiki/core";
 
 
-export function generateWikiStructurePrompt(repoName: string, commitId: string): string {
+export function generateWikiStructurePrompt(repoName: string, commitId: string, fileTree: string): string {
   return `
 Analyze this GitHub repository ${repoName} and create a wiki structure for it.
+
+## Repository File Structure
+
+The following is the file tree of the repository:
+
+<file_tree>
+${fileTree}
+</file_tree>
 
 I want to create a wiki for this repository. Determine the most logical structure for a wiki based on the repository's content.
 

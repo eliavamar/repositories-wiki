@@ -10,36 +10,66 @@ export class PushToGitHubStep implements PipelineStep {
     if (!context.repoPath) {
       throw new Error("repoPath is required");
     }
-    if (!context.wikiOutputPath) {
-      throw new Error("wikiOutputPath is required");
+    if (!context.wikiStructure) {
+      throw new Error("wikiStructure is required");
     }
     if (!context.commitId) {
       throw new Error("commitId is required");
     }
 
-    const { repoPath, wikiOutputPath, commitId } = context;
+    const { repoPath, wikiStructure, commitId } = context;
     const { wikiBranch } = context.config;
 
     // Checkout or create the wiki branch (orphan if new)
     await gitService.checkoutOrCreateOrphanBranch(repoPath, wikiBranch);
 
-    // Move wiki output files to repo root
-    const wikiJsonSrc = path.join(wikiOutputPath, "wiki.json");
-    const pagesSrc = path.join(wikiOutputPath, "pages");
+    // Clean the directory (delete everything except .git)
+    this.cleanRepoDirectory(repoPath);
 
-    const wikiJsonDest = path.join(repoPath, "wiki.json");
-    const pagesDest = path.join(repoPath, "pages");
+    // Create wiki/sections directory
+    const wikiDir = path.join(repoPath, "wiki");
+    const sectionsDir = path.join(wikiDir, "sections");
+    fs.mkdirSync(sectionsDir, { recursive: true });
 
-    // Remove old files if they exist
-    if (fs.existsSync(wikiJsonDest)) fs.unlinkSync(wikiJsonDest);
-    if (fs.existsSync(pagesDest)) fs.rmSync(pagesDest, { recursive: true });
+    // Write wiki.json at repo root
+    const jsonPath = path.join(repoPath, "wiki.json");
+    fs.writeFileSync(jsonPath, JSON.stringify(wikiStructure, null, 2));
+    logger.info(`Written: wiki.json`);
 
-    // Copy files
-    fs.copyFileSync(wikiJsonSrc, wikiJsonDest);
-    fs.cpSync(pagesSrc, pagesDest, { recursive: true });
+    // Track which pages are assigned to sections
+    const pagesInSections = new Set<string>();
 
-    // Remove the .wiki-output directory
-    fs.rmSync(wikiOutputPath, { recursive: true });
+    // Write pages organized by sections
+    if (wikiStructure.sections) {
+      for (const section of wikiStructure.sections) {
+        const sectionSlug = slugify(section.title);
+        const sectionDir = path.join(sectionsDir, sectionSlug);
+        fs.mkdirSync(sectionDir, { recursive: true });
+
+        for (const pageId of section.pages) {
+          const page = wikiStructure.pages.find((p) => p.id === pageId);
+          if (page) {
+            pagesInSections.add(pageId);
+            const fileName = slugify(page.title) + ".md";
+            const filePath = path.join(sectionDir, fileName);
+            fs.writeFileSync(filePath, page.content);
+            logger.info(`Written: wiki/sections/${sectionSlug}/${fileName}`);
+          }
+        }
+      }
+    }
+
+    // Write orphan pages (not in any section) directly in wiki/
+    for (const page of wikiStructure.pages) {
+      if (!pagesInSections.has(page.id)) {
+        const fileName = slugify(page.title) + ".md";
+        const filePath = path.join(wikiDir, fileName);
+        fs.writeFileSync(filePath, page.content);
+        logger.info(`Written: wiki/${fileName}`);
+      }
+    }
+
+    logger.info(`Wiki files written to: ${repoPath}`);
 
     // Commit and push
     await gitService.addAll(repoPath);
@@ -54,4 +84,32 @@ export class PushToGitHubStep implements PipelineStep {
 
     return context;
   }
+
+  private cleanRepoDirectory(repoPath: string): void {
+    const entries = fs.readdirSync(repoPath);
+
+    for (const entry of entries) {
+      if (entry === ".git") {
+        continue; // Preserve .git directory
+      }
+
+      const fullPath = path.join(repoPath, entry);
+      const stat = fs.statSync(fullPath);
+
+      if (stat.isDirectory()) {
+        fs.rmSync(fullPath, { recursive: true, force: true });
+      } else {
+        fs.unlinkSync(fullPath);
+      }
+    }
+
+    logger.info("Cleaned repository directory (preserved .git)");
+  }
+}
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
 }

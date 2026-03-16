@@ -5,7 +5,6 @@ import {
   DetectFlowStep,
   GenerateStructureStep,
   GeneratePagesStep,
-  WriteFilesStep,
   PushToGitHubStep,
   type PipelineResult,
 } from "./pipeline";
@@ -19,7 +18,6 @@ export async function generateWiki(config: WikiGeneratorConfig): Promise<Pipelin
     .addStep(new DetectFlowStep())
     .addStep(new GenerateStructureStep())
     .addStep(new GeneratePagesStep())
-    .addStep(new WriteFilesStep())
     .addStep(new PushToGitHubStep());
 
   return pipeline.execute(validatedConfig);
@@ -46,3 +44,22 @@ export async function main(config: WikiGeneratorConfig): Promise<void> {
   }
 }
 
+export async function run(): Promise<void> {
+  const config: WikiGeneratorConfig = {
+    repositoryUrl: "https://github.com/eliavamar/mcp-of-mcps",
+    githubToken: process.env.GITHUB_TOKEN,
+    wikiBranch: "repository-wiki-memory",
+    llm: {
+      provider: "anthropic",
+      model: "claude-sonnet-4-5",
+      apiKey: process.env.ANTHROPIC_API_KEY || "<apiKey>",
+    },
+  };
+
+  await main(config);
+}
+
+run().catch((error) => {
+  logger.error("CLI failed:", error);
+  process.exit(1);
+});

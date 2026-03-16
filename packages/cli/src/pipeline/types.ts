@@ -24,8 +24,6 @@ export interface PipelineContext {
   // Agent (managed by pipeline)
   agent?: CodingAgent;
 
-  // Output paths (set by WriteFilesStep)
-  wikiOutputPath?: string;
 }
 
 /**
@@ -50,9 +48,6 @@ export interface PipelineStep {
 export interface PipelineResult {
   /** The generated wiki structure with all page content */
   wikiStructure: WikiStructureModel;
-
-  /** Path to the wiki output directory */
-  wikiOutputPath: string;
 
   /** The commit ID of the source repository */
   commitId: string;

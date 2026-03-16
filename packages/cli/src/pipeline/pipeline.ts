@@ -34,9 +34,6 @@ export class WikiGeneratorPipeline {
       if (!context.wikiStructure) {
         throw new Error("Pipeline completed but wikiStructure is missing");
       }
-      if (!context.wikiOutputPath) {
-        throw new Error("Pipeline completed but wikiOutputPath is missing");
-      }
       if (!context.commitId) {
         throw new Error("Pipeline completed but commitId is missing");
       }
@@ -45,7 +42,6 @@ export class WikiGeneratorPipeline {
 
       return {
         wikiStructure: context.wikiStructure,
-        wikiOutputPath: context.wikiOutputPath,
         commitId: context.commitId,
       };
     } finally {

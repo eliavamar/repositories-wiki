@@ -1,13 +1,16 @@
 export interface ParsedPageContent {
   content: string;
-  filePaths: string[];
+  relevantFiles: { filePath: string }[];
 }
 
 export function parsePageContent(xmlResponse: string): ParsedPageContent {
   const filePaths = extractFilePaths(xmlResponse);
   const content = extractContent(xmlResponse);
 
-  return { content, filePaths };
+  return {
+    content,
+    relevantFiles: filePaths.map((filePath) => ({ filePath })),
+  };
 }
 
 function extractFilePaths(response: string): string[] {

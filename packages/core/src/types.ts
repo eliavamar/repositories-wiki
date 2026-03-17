@@ -35,13 +35,18 @@ export const WikiGeneratorConfigSchema = z.object({
 });
 
 
+// === Relevant File Schema ===
+export const RelevantFileSchema = z.object({
+  filePath: z.string(),
+  importance: z.enum(["low", "medium", "high"]).optional(),
+});
+
 // === Wiki Page Schema ===
 export const WikiPageSchema = z.object({
   id: z.string(),
   title: z.string(),
   content: z.string(),
-  filePaths: z.array(z.string()),
-  importance: z.enum(["high", "medium", "low"]),
+  relevantFiles: z.array(RelevantFileSchema),
   relatedPages: z.array(z.string()),
 });
 
@@ -67,6 +72,20 @@ export const WikiStructureModelSchema = z.object({
 export type LlmConfig = z.infer<typeof LlmConfigSchema>;
 export type WikiGeneratorConfig = z.infer<typeof WikiGeneratorConfigSchema>;
 export type AgentResult<T extends z.ZodRawShape> = z.infer<z.ZodObject<T>>;
+export type RelevantFile = z.infer<typeof RelevantFileSchema>;
 export type WikiPage = z.infer<typeof WikiPageSchema>;
 export type WikiSection = z.infer<typeof WikiSectionSchema>;
 export type WikiStructureModel = z.infer<typeof WikiStructureModelSchema>;
+
+// === Git Changed Files Types ===
+/** Represents a single changed file with its diff content */
+export interface ChangedFile {
+  path: string;
+  changeType: "added" | "modified" | "deleted";
+  diff: string;
+}
+
+/** Result of getChangedFiles operation */
+export interface ChangedFilesResult {
+  files: ChangedFile[];
+}

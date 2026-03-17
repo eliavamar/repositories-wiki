@@ -59,7 +59,6 @@ Return your analysis in the following XML format:
     <page id="page-1">
       <title>[Page title]</title>
       <description>[Brief description of what this page will cover]</description>
-      <importance>high|medium|low</importance>
       <relevant_files>
         <file_path>[Path to a relevant file]</file_path>
         <!-- More file paths as needed -->
@@ -108,7 +107,7 @@ Your response MUST be wrapped in the following XML structure inside a \`<details
 Format your response EXACTLY like this:
 <details>
 <RELEVANT_SOURCE_FILES>
-${page.filePaths.map(path => `- [${path}](${path})`).join('\n')}
+${page.relevantFiles.map(f => `- [${f.filePath}](${f.filePath})`).join('\n')}
 <!-- Add additional relevant files if fewer than 5 were provided -->
 </RELEVANT_SOURCE_FILES>
 <content>

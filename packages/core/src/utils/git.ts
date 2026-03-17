@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { logger } from "./logger";
-import { CloneOptions, CloneResult } from "../types";
+import { CloneOptions, CloneResult, ChangedFile, ChangedFilesResult } from "../types";
 
 
 
@@ -148,6 +148,91 @@ export class GitService {
     const git = simpleGit(repoPath);
     const args = force ? ["--set-upstream", "origin", branch, "--force"] : ["--set-upstream", "origin", branch];
     await git.push(args);
+  }
+
+  /**
+   * Show contents of a file from a specific branch without checking out.
+   * Uses `git show branch:path` to read file contents.
+   */
+  async showFileFromBranch(
+    repoPath: string,
+    branch: string,
+    filePath: string
+  ): Promise<string | null> {
+    const git = simpleGit(repoPath);
+    try {
+      // Try remote branch first, then local
+      const remoteBranch = `origin/${branch}`;
+      try {
+        return await git.show([`${remoteBranch}:${filePath}`]);
+      } catch {
+        // Try local branch
+        return await git.show([`${branch}:${filePath}`]);
+      }
+    } catch {
+      logger.debug(`File ${filePath} not found on branch ${branch}`);
+      return null;
+    }
+  }
+
+  /**
+   * Get list of changed files between two commits with their diff content.
+   * Returns files categorized by change type with the actual diff for each file.
+   */
+  async getChangedFiles(
+    repoPath: string,
+    fromCommit: string,
+    toCommit: string
+  ): Promise<ChangedFilesResult> {
+    const git = simpleGit(repoPath);
+    
+    try {
+      // Get list of changed files with status
+      const diffNameStatus = await git.raw([
+        "diff",
+        "--name-status",
+        fromCommit,
+        toCommit,
+      ]);
+
+      const files: ChangedFile[] = [];
+      const lines = diffNameStatus.trim().split("\n").filter(Boolean);
+
+      for (const line of lines) {
+        const [status, ...pathParts] = line.split("\t");
+        const filePath = pathParts.join("\t"); // Handle paths with tabs (rare but possible)
+        
+        if (!status || !filePath) continue;
+
+        let changeType: "added" | "modified" | "deleted";
+        if (status.startsWith("A")) {
+          changeType = "added";
+        } else if (status.startsWith("D")) {
+          changeType = "deleted";
+        } else {
+          changeType = "modified";
+        }
+
+        // Get the diff content for this specific file
+        let diffContent = "";
+        try {
+          diffContent = await git.diff([fromCommit, toCommit, "--", filePath]);
+        } catch {
+          // File might have been renamed or have special characters
+        }
+
+        files.push({
+          path: filePath,
+          changeType,
+          diff: diffContent,
+        });
+      }
+
+      return { files };
+    } catch (error) {
+      logger.debug(`Failed to get diff between ${fromCommit} and ${toCommit}: ${error}`);
+      return { files: [] };
+    }
   }
 }
 

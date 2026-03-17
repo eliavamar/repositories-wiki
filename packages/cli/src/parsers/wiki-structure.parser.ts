@@ -12,7 +12,7 @@ export function parseWikiStructure(xmlResponse: string): WikiStructureModel {
   const description = extractTag(xml, "description");
   const commitId = extractTag(xml, "commit_id");
 
-  const pages = parsePages(xml);
+  const pages = parseWikiStructurePages(xml);
   const sections = parseSections(xml);
   const rootSections = sections
     .filter((s) => !xml.includes(`<section_ref>${s.id}</section_ref>`))
@@ -33,7 +33,7 @@ function extractTag(xml: string, tagName: string): string {
   return match?.[1]?.trim() ?? "";
 }
 
-function parsePages(xml: string): WikiPage[] {
+function parseWikiStructurePages(xml: string): WikiPage[] {
   // Find the <pages> block that contains actual <page> elements (not <page_ref>)
   const allPagesMatches = [...xml.matchAll(/<pages>([\s\S]*?)<\/pages>/g)];
   const pagesSection = allPagesMatches.find(m => m[1]?.includes('<page '));
@@ -47,10 +47,10 @@ function parsePages(xml: string): WikiPage[] {
     const pageXml = match[2];
     if (!id || !pageXml) continue;
 
-    const filePaths: string[] = [];
+    const relevantFiles: { filePath: string }[] = [];
     const fileMatches = pageXml.matchAll(/<file_path>([^<]+)<\/file_path>/g);
     for (const fm of fileMatches) {
-      if (fm[1]) filePaths.push(fm[1].trim());
+      if (fm[1]) relevantFiles.push({ filePath: fm[1].trim() });
     }
 
     const relatedPages: string[] = [];
@@ -59,14 +59,12 @@ function parsePages(xml: string): WikiPage[] {
       if (rm[1]) relatedPages.push(rm[1].trim());
     }
 
-    const importance = extractTag(pageXml, "importance") as "high" | "medium" | "low";
 
     pages.push({
       id,
       title: extractTag(pageXml, "title"),
       content: "",
-      filePaths,
-      importance: importance || "medium",
+      relevantFiles,
       relatedPages,
     });
   }

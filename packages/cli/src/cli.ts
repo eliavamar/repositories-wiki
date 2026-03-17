@@ -34,7 +34,7 @@ export async function main(config: WikiGeneratorConfig): Promise<void> {
     logger.info(`Commit: ${result.commitId}`);
     logger.info("\nPages:");
     for (const page of result.wikiStructure.pages) {
-      logger.info(`  - ${page.title} (${page.importance})`);
+      logger.info(`  - ${page.title}`);
     }
   } catch (error) {
     logger.error(

@@ -1,4 +1,4 @@
-import type { WikiPage } from "@repositories-wiki/core";
+import type { WikiPage, WikiStructureModel, ChangedFilesResult } from "@repositories-wiki/core";
 
 
 export function generateWikiStructurePrompt(repoName: string, commitId: string, fileTree: string): string {
@@ -80,6 +80,185 @@ IMPORTANT:
 `;
 }
 
+export function generateUpdateWikiStructurePrompt(
+  repoName: string,
+  commitId: string,
+  fileTree: string,
+  previousStructure: WikiStructureModel,
+  changedFiles: ChangedFilesResult,
+  changedFilesDirPath?: string
+): string {
+  // Strip content from pages for the prompt (keep structure only)
+  const structureWithoutContent = {
+    ...previousStructure,
+    pages: previousStructure.pages.map((p) => ({
+      id: p.id,
+      title: p.title,
+      description: p.description,
+      relevantFiles: p.relevantFiles,
+      relatedPages: p.relatedPages,
+    })),
+  };
+
+  const changedFilesList = changedFiles.files
+    .map((f) => `- ${f.changeType.toUpperCase()}: ${f.path}`)
+    .join("\n");
+
+  const diffDirInfo = changedFilesDirPath
+    ? `\nThe full diffs for each changed file are available in the directory: ${changedFilesDirPath}\nEach file in that directory contains the diff content for the corresponding changed file (filename format: path__to__file.ext.diff).`
+    : "";
+
+  return `
+You are an expert technical documentation specialist with deep understanding of software architecture and codebase evolution. Your task is to maintain a wiki for the repository "${repoName}".
+
+## Current Wiki Structure (without page content)
+
+The following is the existing wiki structure. Page content is omitted - only the structure and metadata are shown:
+
+<current_structure>
+${JSON.stringify(structureWithoutContent, null, 2)}
+</current_structure>
+
+## Repository File Structure
+
+The following is the current file tree of the repository:
+
+<file_tree>
+${fileTree}
+</file_tree>
+
+## Changes Since Last Wiki Update
+
+The following files have changed between commit ${previousStructure.commitId} and ${commitId}:
+
+<changed_files>
+${changedFilesList || "No files changed"}
+</changed_files>
+${diffDirInfo}
+
+## Your Task
+
+1. **Quick Brief**: Take a quick look at the current wiki structure and the codebase file tree to understand how they relate to each other.
+
+2. **Understand the Changes**: Analyze the code changes listed above and understand how they affect the codebase - what functionality was added, modified, or removed.
+
+3. **Assess Wiki Impact**: Based on your understanding of the changes, determine how they should affect the wiki structure.
+
+4. **Make Your Decision**: For each page, decide:
+   - **UPDATE**: The page needs updating because:
+     - New files with related functionality should be added to this page, OR
+     - Existing files that this page documents have changed in ways that affect the documentation
+   - **NEW**: New functionality was introduced that doesn't fit in any existing page - create a new page for it
+   - **REMOVE**: Based on the changes, this page is no longer relevant (simply omit it from the output)
+   - **UNCHANGED**: The page is not affected by the recent changes (no status attribute)
+
+5. **Section Management**:
+   - If a **NEW page** is added and it doesn't fit any existing section, create a new section for it
+   - If an **UPDATED page** no longer fits its current section due to the changes, move it to a more appropriate section or create a new one
+   - If pages are **REMOVED** and a section becomes empty, omit that section from the output
+
+### Wiki Structure Concepts
+
+When designing or updating the wiki structure, include pages that would benefit from visual diagrams, such as:
+- Architecture overviews
+- Data flow descriptions
+- Component relationships
+- Process workflows
+- State machines
+- Class hierarchies
+
+The wiki should ideally have the following main sections:
+- **Overview** (general information about the project)
+- **System Architecture** (how the system is designed)
+- **Core Features** (key functionality)
+- **Data Management/Flow**: If applicable, how data is stored, processed, accessed, and managed (e.g., database schema, data pipelines, state management)
+- **Frontend Components** (UI elements, if applicable)
+- **Backend Systems** (server-side components, if applicable)
+- **Model Integration** (AI model connections, if applicable)
+- **Deployment/Infrastructure** (how to deploy, what's the infrastructure like, if applicable)
+- **Extensibility and Customization**: If the project architecture supports it, explain how to extend or customize its functionality (e.g., plugins, theming, custom modules, hooks)
+
+Each section should contain relevant pages. For example, the "Frontend Components" section might include pages for "Home Page", "Repository Wiki Page", "Ask Component", etc.
+
+### Important Guidelines
+
+- Keep existing page IDs when possible for consistency
+- Only mark pages as UPDATE if the changes actually affect their content
+- When adding new pages, assign unique IDs (e.g., "page-13", "new-feature-page")
+- If a section becomes empty after removing pages, remove the section too
+- Maintain the section hierarchy (rootSections -> sections -> subsections)
+
+## Output Format
+
+Return the updated wiki structure in the following XML format:
+
+<wiki_structure>
+  <title>[Overall title for the wiki]</title>
+  <description>[Brief description of the repository]</description>
+  <commit_id>${commitId}</commit_id>
+  <sections>
+    <section id="section-1">
+      <title>[Section title]</title>
+      <pages>
+        <page_ref>page-1</page_ref>
+        <page_ref>page-2</page_ref>
+      </pages>
+      <subsections>
+        <section_ref>section-2</section_ref>
+      </subsections>
+    </section>
+    <!-- More sections as needed -->
+  </sections>
+  <pages>
+    <!-- Page needing update (content will be regenerated) -->
+    <page id="existing-page-id" status="UPDATE">
+      <title>[Page title]</title>
+      <description>[Brief description of what this page will cover]</description>
+      <relevant_files>
+        <file_path>[Path to a relevant file]</file_path>
+      </relevant_files>
+      <related_pages>
+        <related>page-2</related>
+      </related_pages>
+    </page>
+    
+    <!-- Brand new page -->
+    <page id="new-page-id" status="NEW">
+      <title>[New Page title]</title>
+      <description>[Brief description of what this page will cover]</description>
+      <relevant_files>
+        <file_path>[Path to a relevant file]</file_path>
+      </relevant_files>
+      <related_pages>
+        <related>page-1</related>
+      </related_pages>
+    </page>
+    
+    <!-- Unchanged page (no status = keep existing content) -->
+    <page id="existing-page-id">
+      <title>[Page title]</title>
+      <description>[Brief description of what this page will cover]</description>
+      <relevant_files>
+        <file_path>[Path to a relevant file]</file_path>
+      </relevant_files>
+      <related_pages>
+        <related>page-3</related>
+      </related_pages>
+    </page>
+    
+    <!-- Pages that should be deleted are simply NOT included -->
+  </pages>
+</wiki_structure>
+
+IMPORTANT:
+1. Only include pages that should exist in the updated wiki
+2. Use status="NEW" for brand new pages that need full content generation
+3. Use status="UPDATE" for existing pages whose content needs to be regenerated
+4. Omit the status attribute for pages that should keep their existing content
+5. Do not include pages that should be deleted - just leave them out
+`;
+}
+
 export function generatePageContentPrompt(
   page: WikiPage,
   sectionTitle: string,
@@ -98,8 +277,11 @@ You will be given:
 **Project Context:**
 - **Repository Name:** ${repoName}
 - **Repository Description:** ${repoDescription}
+
+**What This Page Should Cover:**
 - **Wiki Section:** ${sectionTitle}
 - **Page Topic:** ${page.title}
+- **Page Description:** ${page.description}
 
 CRITICAL OUTPUT FORMAT INSTRUCTION:
 Your response MUST be wrapped in the following XML structure inside a \`<details>\` block. Do not provide any acknowledgements, disclaimers, apologies, or any other preface. JUST START with the \`<details>\` block.

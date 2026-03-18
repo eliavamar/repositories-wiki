@@ -22,6 +22,12 @@ export class WikiGeneratorPipeline {
 
     try {
       for (const step of this.steps) {
+        // Check if pipeline should be skipped
+        if (context.skipPipeline) {
+          logger.info(`━━━ Skipping step: ${step.name} (${context.skipReason}) ━━━`);
+          continue;
+        }
+
         logger.info(`━━━ Executing step: ${step.name} ━━━`);
         const startTime = Date.now();
 
@@ -38,7 +44,11 @@ export class WikiGeneratorPipeline {
         throw new Error("Pipeline completed but commitId is missing");
       }
 
-      logger.info("━━━ Pipeline completed successfully ━━━");
+      if (context.skipPipeline) {
+        logger.info(`━━━ Pipeline skipped: ${context.skipReason} ━━━`);
+      } else {
+        logger.info("━━━ Pipeline completed successfully ━━━");
+      }
 
       return {
         wikiStructure: context.wikiStructure,

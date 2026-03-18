@@ -41,13 +41,19 @@ export const RelevantFileSchema = z.object({
   importance: z.enum(["low", "medium", "high"]).optional(),
 });
 
+// === Page Status (for update flow) ===
+export const PageStatusSchema = z.enum(["NEW", "UPDATE"]);
+export type PageStatus = z.infer<typeof PageStatusSchema>;
+
 // === Wiki Page Schema ===
 export const WikiPageSchema = z.object({
   id: z.string(),
   title: z.string(),
+  description: z.string(),
   content: z.string(),
   relevantFiles: z.array(RelevantFileSchema),
   relatedPages: z.array(z.string()),
+  status: PageStatusSchema.optional(), // NEW or UPDATE for update flow
 });
 
 // === Wiki Section Schema ===

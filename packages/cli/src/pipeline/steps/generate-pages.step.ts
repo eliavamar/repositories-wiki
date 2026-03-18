@@ -1,5 +1,5 @@
 import { logger } from "@repositories-wiki/core";
-import type { WikiStructureModel, RelevantFile } from "@repositories-wiki/core";
+import type { WikiStructureModel, RelevantFile, WikiPage } from "@repositories-wiki/core";
 import type { PipelineContext, PipelineStep } from "../types";
 import { generatePageContentPrompt } from "../prompts";
 import { parsePageContent } from "../../parsers";
@@ -18,12 +18,26 @@ export class GeneratePagesStep implements PipelineStep {
       throw new Error("wikiStructure is required");
     }
 
-    const { wikiStructure, agent, repoPath, repoName } = context;
+    const { wikiStructure, agent, repoPath, repoName, flowType } = context;
 
-    logger.info(`Generating content for ${wikiStructure.pages.length} pages in parallel...`);
+    // Determine which pages need content generation
+    const pagesToGenerate = this.getPagesToGenerate(wikiStructure.pages, flowType);
+    const pagesToSkip = wikiStructure.pages.length - pagesToGenerate.length;
 
-    const pageGenerationTasks = wikiStructure.pages.map(async (page) => {
-      logger.info(`Generating content for: ${page.title}`);
+    if (pagesToSkip > 0) {
+      logger.info(`Skipping ${pagesToSkip} pages (content unchanged)`);
+    }
+
+    if (pagesToGenerate.length === 0) {
+      logger.info("No pages need content generation");
+      return context;
+    }
+
+    logger.info(`Generating content for ${pagesToGenerate.length} pages in parallel...`);
+
+    const pageGenerationTasks = pagesToGenerate.map(async (page) => {
+      const statusLabel = page.status ? ` [${page.status}]` : "Page without content";
+      logger.info(`Generating content for: ${page.title}${statusLabel}`);
 
       const sectionTitle = findSectionTitle(wikiStructure, page.id);
       const prompt = generatePageContentPrompt(
@@ -51,7 +65,31 @@ export class GeneratePagesStep implements PipelineStep {
 
     await Promise.all(pageGenerationTasks);
 
+    // Clear status from all pages (including those that were skipped)
+    if(flowType == "update"){
+      for (const page of wikiStructure.pages) {
+        if(page.status){
+          delete page.status;
+        }
+      }
+    }
+
     return context;
+  }
+
+  /**
+   * Determine which pages need content generation based on flow type and page status.
+   * - For "new" flow: generate all pages
+   * - For "update" flow: only generate pages with status "NEW" or "UPDATE"
+   */
+  private getPagesToGenerate(pages: WikiPage[], flowType?: "new" | "update"): WikiPage[] {
+    if (flowType === "update") {
+      // Only generate pages that have a status (NEW or UPDATE)
+      return pages.filter((page) => page.status === "NEW" || page.status === "UPDATE" || !page.content);
+    }
+
+    // For new flow, generate all pages
+    return pages;
   }
 }
 

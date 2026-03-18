@@ -3,7 +3,7 @@ import {
   WikiGeneratorPipeline,
   CloneRepositoryStep,
   DetectFlowStep,
-  GenerateStructureStep,
+  StructureStep,
   GeneratePagesStep,
   PushToGitHubStep,
   type PipelineResult,
@@ -16,7 +16,7 @@ export async function generateWiki(config: WikiGeneratorConfig): Promise<Pipelin
   const pipeline = new WikiGeneratorPipeline()
     .addStep(new CloneRepositoryStep())
     .addStep(new DetectFlowStep())
-    .addStep(new GenerateStructureStep())
+    .addStep(new StructureStep())  // Delegates to GenerateStructureStep or UpdateStructureStep based on flowType
     .addStep(new GeneratePagesStep())
     .addStep(new PushToGitHubStep());
 

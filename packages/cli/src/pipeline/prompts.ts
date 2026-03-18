@@ -3,38 +3,45 @@ import type { WikiPage, WikiStructureModel, ChangedFilesResult } from "@reposito
 
 export function generateWikiStructurePrompt(repoName: string, commitId: string, fileTree: string): string {
   return `
-Analyze this GitHub repository ${repoName} and create a wiki structure for it.
+Analyze this GitHub repository ${repoName} and design the most appropriate wiki structure for it.
 
 ## Repository File Structure
-
-The following is the file tree of the repository:
 
 <file_tree>
 ${fileTree}
 </file_tree>
 
-I want to create a wiki for this repository. Determine the most logical structure for a wiki based on the repository's content.
+## Your Task
 
-When designing the wiki structure, include pages that would benefit from visual diagrams, such as:
-- Architecture overviews
-- Data flow descriptions
-- Component relationships
-- Process workflows
-- State machines
-- Class hierarchies
+Study the codebase carefully and infer:
+- What kind of project this is (e.g., CLI tool, web app, library, data pipeline, monorepo)
+- What its key subsystems and responsibilities are
+- What a developer would need to understand to work with it effectively
 
-Create a structured wiki with the following main sections:
-- Overview (general information about the project)
-- System Architecture (how the system is designed)
-- Core Features (key functionality)
-- Data Management/Flow: If applicable, how data is stored, processed, accessed, and managed (e.g., database schema, data pipelines, state management).
-- Frontend Components (UI elements, if applicable.)
-- Backend Systems (server-side components, if applicable)
-- Model Integration (AI model connections, if applicable)
-- Deployment/Infrastructure (how to deploy, what's the infrastructure like, if applicable)
-- Extensibility and Customization: If the project architecture supports it, explain how to extend or customize its functionality (e.g., plugins, theming, custom modules, hooks).
+Then design a wiki from scratch — **do not use a fixed template**. The sections and pages should emerge naturally from the repository's actual content and complexity.
 
-Each section should contain relevant pages. For example, the "Frontend Components" section might include pages for "Home Page", "Repository Wiki Page", "Ask Component", etc.
+## Guidelines
+
+**Sections** should reflect the real conceptual boundaries of *this* project. Common themes to consider (use only what applies):
+- How the system is structured and why
+- How data moves through it
+- What the major features or modules do
+- How to set it up, run it, and deploy it
+- How to extend or integrate with it
+- Any domain-specific concerns (AI models, auth, real-time systems, etc.)
+
+Invent section names that are specific and meaningful for this repo. Avoid generic titles like "Miscellaneous" or "Other."
+
+**Pages** should each cover one focused, self-contained topic. Calibrate the total page count to the repository's actual complexity:
+- A small/focused repo may need only 4–6 pages
+- A medium repo typically warrants 8–14 pages
+- A large or complex repo may justify up to 17–22 pages
+
+Avoid creating pages that would be redundant, near-empty, or that repeat each other. Every page should earn its place.
+
+**Diagrams:** Flag pages that would benefit from a visual by noting it in their description. Good candidates include: architecture overviews, data flows, component relationships, process workflows, state machines, and class hierarchies.
+
+## Output Format
 
 Return your analysis in the following XML format:
 
@@ -58,14 +65,13 @@ Return your analysis in the following XML format:
   <pages>
     <page id="page-1">
       <title>[Page title]</title>
-      <description>[Brief description of what this page will cover]</description>
+      <description>[What this page covers, and whether a diagram would help]</description>
       <relevant_files>
-        <file_path>[Path to a relevant file]</file_path>
+        <file_path>[Path to a relevant file from the repo]</file_path>
         <!-- More file paths as needed -->
       </relevant_files>
       <related_pages>
         <related>page-2</related>
-        <!-- More related page IDs as needed -->
       </related_pages>
       <parent_section>section-1</parent_section>
     </page>
@@ -74,9 +80,10 @@ Return your analysis in the following XML format:
 </wiki_structure>
 
 IMPORTANT:
-1. Create up tp 12 pages that would make a comprehensive wiki for this repository
-2. Each page should focus on a specific aspect of the codebase (e.g., architecture, key features, setup)
-3. The relevant_files should be actual files from the repository that would be used to generate that page
+1. Section and page titles must be derived from the actual repository — do not copy generic template names
+2. Page count must be proportional to the repository's size and complexity, not a fixed number
+3. Every page's relevant_files must reference real paths visible in the file tree above
+4. Each page should cover a distinct aspect — no overlap, no filler pages
 `;
 }
 

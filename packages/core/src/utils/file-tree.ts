@@ -60,9 +60,9 @@ export function generateFileTree(
   options: FileTreeOptions = {}
 ): string {
   const {
-    maxDepth = 5,
+    maxDepth = 10,
     exclusions = DEFAULT_EXCLUSIONS,
-    maxItems = 500,
+    maxItems = 1000,
     excludeDotFiles = true,
   } = options;
 

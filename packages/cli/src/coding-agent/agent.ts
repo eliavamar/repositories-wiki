@@ -1,8 +1,8 @@
 import { createOpencodeClient, createOpencodeServer } from "@opencode-ai/sdk";
 import type { Session, Part, OpencodeClient } from "@opencode-ai/sdk";
 import { existsSync } from "fs";
-import { logger, type LlmConfig, type AgentInput } from "@repositories-wiki/core";
-import { OpenCodeConfig, PromptBody } from "./types";
+import { logger, type AgentInput, type AgentRunResult, type ProviderConfig } from "@repositories-wiki/core";
+import type { PromptBody } from "./types";
 
 /**
  * CodingAgent class for interacting with OpenCode AI
@@ -20,15 +20,9 @@ export class CodingAgent {
   // Client state (cached for reuse) - Map of repoPath to client
   private clients: Map<string, OpencodeClient> = new Map();
 
-  /**
-   * Start the server with the given LLM configuration
-   * Closes existing server if one exists
-   */
-  async startServer(llmConfig: LlmConfig): Promise<void> {
+  async startServer(providerConfig?: ProviderConfig): Promise<void> {
     logger.info(`Starting server on ${this.serverUrl}`);
-    const config = this.buildConfig(llmConfig);
 
-    // Close old server if exists
     if (this.server) {
       logger.debug("Closing existing server");
       this.server.close();
@@ -36,7 +30,7 @@ export class CodingAgent {
       logger.debug("Existing server closed");
     }
 
-    // Create new server
+    const config = this.buildConfig(providerConfig);
     logger.debug("Creating new OpenCode server", { hostname: this.serverHost, port: this.serverPort });
     this.server = await createOpencodeServer({
       hostname: this.serverHost,
@@ -47,40 +41,54 @@ export class CodingAgent {
   }
 
 
-  async run(
-    input: AgentInput
-  ): Promise<string> {
-    const { repoPath, prompt, title } = input;
-    logger.info(`Starting run for repo: ${repoPath}`, { title });
+  async run(input: AgentInput): Promise<AgentRunResult> {
+    const { repoPath, prompt, title, parentId, llmConfig } = input;
+    logger.info(`Starting run for repo: ${repoPath}`, { title, parentId, llmConfig });
 
     this.validateRepoPath(repoPath);
     
     logger.debug("Creating/Get client for repo:", { repoPath });
     const client = this.getOrCreateClient(repoPath);
 
-    logger.debug("Creating session", { title });
-    const session = await this.createSession(client, title);
+    logger.debug("Creating session", { title, parentId });
+    const session = await this.createSession(client, title, parentId);
     logger.debug(`Session created: ${session.id}`);
 
+    const body: PromptBody = {
+      parts: [{ type: "text" as const, text: prompt }],
+      model: llmConfig,
+    };
+    logger.debug("Generating response", { sessionId: session.id, llmConfig });
+    const result = await this.generate(client, session.id, body);
+    logger.info(`Run completed successfully for session: ${session.id}`);
+    
+    return { result, sessionId: session.id };
+  }
+
+
+  async cleanupSessions(repoPath: string): Promise<void> {
+    const client = this.clients.get(repoPath);
+    if (!client) {
+      logger.debug("No client found for cleanup", { repoPath });
+      return;
+    }
+
     try {
-      const body: PromptBody = {
-        parts: [{ type: "text" as const, text: prompt }],
-      };
-      logger.debug("Generating response", { sessionId: session.id });
-      const result = await this.generate(client, session.id, body);
-      logger.info(`Run completed successfully for session: ${session.id}`);
-      return result;
-    } catch (error) {
-      logger.error(`Run failed for session: ${session.id}`, error);
-      throw error;
-    } finally {
-      try {
-        logger.debug("Cleaning up session", { sessionId: session.id });
-        await client.session.delete({ path: { id: session.id } });
-        logger.debug("Session deleted successfully", { sessionId: session.id });
-      } catch (deleteError) {
-        logger.warn("Failed to delete session", { sessionId: session.id, error: deleteError });
+      const sessionsResponse = await client.session.list();
+      const sessions = sessionsResponse.data || [];
+      
+      logger.info(`Cleaning up ${sessions.length} sessions`);
+      
+      for (const session of sessions) {
+        try {
+          await client.session.delete({ path: { id: session.id } });
+          logger.debug("Session deleted", { sessionId: session.id });
+        } catch (error) {
+          logger.warn("Failed to delete session", { sessionId: session.id, error });
+        }
       }
+    } catch (error) {
+      logger.error("Failed to list sessions for cleanup", { error });
     }
   }
 
@@ -113,11 +121,32 @@ export class CodingAgent {
       baseUrl: this.serverUrl,
       directory: repoPath,
       throwOnError: true,
+      fetch: this.createFetchWithTimeout(5 * 60 * 1000), // 5 minute timeout for long AI responses
     });
     this.clients.set(repoPath, client);
     logger.debug("OpenCode client created successfully");
 
     return client;
+  }
+
+
+  /**
+   * This is needed because AI model responses for large prompts can take several minutes
+   */
+  private createFetchWithTimeout(timeoutMs: number): typeof fetch {
+    return (input: RequestInfo | URL, init?: RequestInit) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
+      
+      const fetchInit: RequestInit = {
+        ...init,
+        signal: controller.signal,
+      };
+      
+      return fetch(input, fetchInit).finally(() => {
+        clearTimeout(timeout);
+      });
+    };
   }
 
 
@@ -128,32 +157,30 @@ export class CodingAgent {
   }
 
 
-  private buildConfig(llmConfig: LlmConfig): OpenCodeConfig {
-    const config: OpenCodeConfig = {
-      $schema: "https://opencode.ai/config.json",
-      model: `${llmConfig.provider}/${llmConfig.model}`,
-    };
-
-    if (llmConfig.apiKey) {
-      config.provider = {
-        [llmConfig.provider]: {
-          options: {
-            apiKey: llmConfig.apiKey,
-          },
-        },
-      };
+  private buildConfig(providerConfig?: ProviderConfig) {
+    if (!providerConfig?.apiKey) {
+      return undefined;
     }
 
-    return config;
+    return {
+      provider: {
+        [providerConfig.provider]: {
+          options: {
+            apiKey: providerConfig.apiKey,
+          },
+        },
+      },
+    };
   }
 
 
   private async createSession(
     client: OpencodeClient,
-    title?: string
+    title?: string,
+    parentId?: string
   ): Promise<Session> {
     const sessionResponse = await client.session.create({
-      body: { title },
+      body: { title, parentID: parentId },
     });
 
     const session: Session | undefined = sessionResponse.data;

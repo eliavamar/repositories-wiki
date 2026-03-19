@@ -18,7 +18,7 @@ export class WikiGeneratorPipeline {
     logger.info(`Repository: ${config.repositoryUrl}`);
 
     context.agent = new CodingAgent();
-    await context.agent.startServer(config.llm);
+    await context.agent.startServer(config.providerConfig);
 
     try {
       for (const step of this.steps) {
@@ -55,15 +55,24 @@ export class WikiGeneratorPipeline {
         commitId: context.commitId,
       };
     } finally {
-      if (context.agent) {
-        logger.info("Closing agent server...");
-        context.agent.closeServer();
-      }
+      await this.cleanup(context);
+    }
+  }
 
-      if (context.repoPath) {
-        logger.info("Cleaning up temporary files...");
-        await gitService.cleanup(context.repoPath);
-      }
+  private async cleanup(context: PipelineContext): Promise<void> {
+    if (context.agent && context.repoPath) {
+      logger.info("Cleaning up agent sessions...");
+      await context.agent.cleanupSessions(context.repoPath);
+    }
+
+    if (context.agent) {
+      logger.info("Closing agent server...");
+      context.agent.closeServer();
+    }
+
+    if (context.repoPath) {
+      logger.info("Cleaning up temporary files...");
+      await gitService.cleanup(context.repoPath);
     }
   }
 }

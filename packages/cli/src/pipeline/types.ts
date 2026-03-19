@@ -28,6 +28,9 @@ export interface PipelineContext {
   // Wiki generation (set by GenerateStructureStep & GeneratePagesStep)
   wikiStructure?: WikiStructureModel;
 
+  // Session tracking (set by StructureStep for page generation inheritance)
+  structureSessionId?: string;
+
   // Agent (managed by pipeline)
   agent?: CodingAgent;
 }

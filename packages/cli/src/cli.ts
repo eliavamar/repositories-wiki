@@ -45,17 +45,30 @@ export async function main(config: WikiGeneratorConfig): Promise<void> {
 }
 
 export async function run(): Promise<void> {
+  // const config: WikiGeneratorConfig = {
+  //   repositoryUrl: "https://github.com/eliavamar/mcp-of-mcps",
+  //   githubToken: process.env.GITHUB_TOKEN,
+  //   wikiBranch: "repository-wiki-memory",
+  //   commitId: "21c02bbc0b7f20f110db31feab8f9aa9e1a87500",
+  //   llm: {
+  //     provider: "anthropic",
+  //     model: "claude-sonnet-4-5",
+  //     apiKey: process.env.ANTHROPIC_API_KEY,
+  //   },
+  // };
   const config: WikiGeneratorConfig = {
-    repositoryUrl: "https://github.com/eliavamar/mcp-of-mcps",
+    repositoryUrl: "https://github.wdf.sap.corp/devx-wing/vscode-service-center",
     githubToken: process.env.GITHUB_TOKEN,
-    wikiBranch: "repository-wiki-memory",
-    llm: {
-      provider: "anthropic",
-      model: "claude-sonnet-4-5",
-      apiKey: process.env.ANTHROPIC_API_KEY,
+    wikiBranch: "repository-wiki-memory3",
+    structureGenerationLlm: {
+      providerID: "sap-ai-core",
+      modelID: "anthropic--claude-4.5-haiku",
+    },
+    pagesGenerationLlm: {
+      providerID: "sap-ai-core",
+      modelID: "anthropic--claude-4.5-haiku",
     },
   };
-
   await main(config);
 }
 

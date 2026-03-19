@@ -12,17 +12,29 @@ export interface CloneResult {
   repoName: string;
 }
 
-// === LLM Config (user-provided) ===
-export const LlmConfigSchema = z.object({
+export const ProviderConfigSchema = z.object({
   provider: z.string(),
-  model: z.string(),
-  apiKey: z.string().optional(),
+  apiKey: z.string(),
 });
 
-export interface AgentInput{
+export const LlmConfigSchema = z.object({
+  providerID: z.string(),
+  modelID: z.string(),
+});
+
+export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
+
+export interface AgentInput {
   repoPath: string;
   prompt: string;
   title?: string;
+  parentId?: string;
+  llmConfig?: LlmConfig;
+}
+
+export interface AgentRunResult {
+  result: string;
+  sessionId: string;
 }
 
 
@@ -31,8 +43,22 @@ export const WikiGeneratorConfigSchema = z.object({
   githubToken: z.string().optional(),
   wikiBranch: z.string().default("repository-wiki-memory"),
   commitId: z.string().optional(),
-  llm: LlmConfigSchema,
-});
+  providerConfig: ProviderConfigSchema.optional(),
+  defaultLlm: LlmConfigSchema.optional(),
+  structureGenerationLlm: LlmConfigSchema.optional(),
+  pagesGenerationLlm: LlmConfigSchema.optional(),
+}).refine(
+  (data) => data.defaultLlm || (data.structureGenerationLlm && data.pagesGenerationLlm),
+  { message: "Either defaultLlm must be provided, or both structureGenerationLlm and pagesGenerationLlm" }
+);
+
+export function getStructureModel(config: WikiGeneratorConfig): LlmConfig {
+  return config.structureGenerationLlm ?? config.defaultLlm!;
+}
+
+export function getPagesModel(config: WikiGeneratorConfig): LlmConfig {
+  return config.pagesGenerationLlm ?? config.defaultLlm!;
+}
 
 
 // === Relevant File Schema ===
@@ -53,7 +79,7 @@ export const WikiPageSchema = z.object({
   content: z.string(),
   relevantFiles: z.array(RelevantFileSchema),
   relatedPages: z.array(z.string()),
-  status: PageStatusSchema.optional(), // NEW or UPDATE for update flow
+  status: PageStatusSchema.optional(), 
 });
 
 // === Wiki Section Schema ===

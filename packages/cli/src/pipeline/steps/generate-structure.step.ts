@@ -1,4 +1,4 @@
-import { logger, generateFileTree } from "@repositories-wiki/core";
+import { logger, generateFileTree, getStructureModel } from "@repositories-wiki/core";
 import type { PipelineContext, PipelineStep } from "../types";
 import { generateWikiStructurePrompt } from "../prompts";
 import { parseWikiStructure } from "../../parsers";
@@ -19,18 +19,20 @@ export class GenerateStructureStep implements PipelineStep {
 
     const prompt = generateWikiStructurePrompt(context.repoName, context.commitId, fileTree);
 
-    const response = await context.agent.run({
+    const { result, sessionId } = await context.agent.run({
       repoPath: context.repoPath,
       prompt,
       title: "Generate Wiki Structure",
+      llmConfig: getStructureModel(context.config),
     });
 
-    const wikiStructure = parseWikiStructure(response);
+    const wikiStructure = parseWikiStructure(result);
     logger.info(`Generated structure with ${wikiStructure.pages.length} pages`);
 
     return {
       ...context,
       wikiStructure,
+      structureSessionId: sessionId,
     };
   }
 }

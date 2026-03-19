@@ -270,8 +270,12 @@ export function generatePageContentPrompt(
   page: WikiPage,
   sectionTitle: string,
   repoName: string,
-  repoDescription: string
+  repoDescription: string,
+  preloadedFiles?: Map<string, string>
 ): string {
+  // Build the pre-loaded files section if files are provided
+  const preloadedFilesSection = buildPreloadedFilesSection(preloadedFiles);
+
   return `You are an expert technical writer and software architect.
 Your task is to generate a comprehensive and accurate technical wiki page in Markdown format about a specific feature, system, or module within a given software project.
 
@@ -279,7 +283,7 @@ Your task is to generate a comprehensive and accurate technical wiki page in Mar
 
 You will be given:
 1. The "[WIKI_PAGE_TOPIC]" for the page you need to create.
-2. A list of "[RELEVANT_SOURCE_FILES]" from the project that you MUST use as the sole basis for the content. You have access to the full content of these files. You MUST use AT LEAST 5 relevant source files for comprehensive coverage - if fewer are provided, search for additional related files in the codebase.
+2. A list of "[RELEVANT_SOURCE_FILES]" from the project that you MUST use as the sole basis for the content. The content of the relevant source files is pre-loaded below. Use these as your primary source of truth. If you need additional context from files not provided below, you can still access the codebase. You MUST use AT LEAST 5 relevant source files for comprehensive coverage - if fewer are provided, search for additional related files in the codebase.
 
 **Project Context:**
 - **Repository Name:** ${repoName}
@@ -385,5 +389,81 @@ Remember:
 - Structure the document logically for easy understanding by other developers.
 - Your response MUST start with \`<details>\` and use the exact XML structure: \`<RELEVANT_SOURCE_FILES>\` followed by \`<content>\`.
 - Do NOT include any text before the \`<details>\` block.
-`;
+${preloadedFilesSection}`;
+}
+
+/** Map of file extensions to Markdown code block language identifiers */
+const EXTENSION_LANG_MAP: Record<string, string> = {
+  ".ts": "typescript",
+  ".tsx": "typescript",
+  ".js": "javascript",
+  ".jsx": "javascript",
+  ".py": "python",
+  ".java": "java",
+  ".go": "go",
+  ".rs": "rust",
+  ".rb": "ruby",
+  ".php": "php",
+  ".cs": "csharp",
+  ".cpp": "cpp",
+  ".c": "c",
+  ".h": "c",
+  ".hpp": "cpp",
+  ".swift": "swift",
+  ".kt": "kotlin",
+  ".scala": "scala",
+  ".sh": "bash",
+  ".bash": "bash",
+  ".zsh": "bash",
+  ".yaml": "yaml",
+  ".yml": "yaml",
+  ".json": "json",
+  ".xml": "xml",
+  ".html": "html",
+  ".css": "css",
+  ".scss": "scss",
+  ".less": "less",
+  ".sql": "sql",
+  ".md": "markdown",
+  ".toml": "toml",
+  ".ini": "ini",
+  ".cfg": "ini",
+  ".env": "bash",
+  ".dockerfile": "dockerfile",
+  ".graphql": "graphql",
+  ".gql": "graphql",
+  ".proto": "protobuf",
+  ".vue": "vue",
+  ".svelte": "svelte",
+};
+
+/**
+ * Get the Markdown code block language identifier for a file path.
+ */
+function getLanguageForFile(filePath: string): string {
+  const ext = filePath.slice(filePath.lastIndexOf(".")).toLowerCase();
+  return EXTENSION_LANG_MAP[ext] || "";
+}
+
+/**
+ * Build the pre-loaded source files section to append to the prompt.
+ * Returns an empty string if no files are provided.
+ */
+function buildPreloadedFilesSection(preloadedFiles?: Map<string, string>): string {
+  if (!preloadedFiles || preloadedFiles.size === 0) return "";
+
+  const parts: string[] = [
+    "\n\n## Pre-loaded Source Files\n",
+    "The following source files have been pre-loaded for your reference. Use these as your primary source of truth for writing the wiki page.\n",
+  ];
+
+  for (const [filePath, content] of preloadedFiles) {
+    const lang = getLanguageForFile(filePath);
+    parts.push(`### ${filePath}`);
+    parts.push(`\`\`\`${lang}`);
+    parts.push(content);
+    parts.push("```\n");
+  }
+
+  return parts.join("\n");
 }

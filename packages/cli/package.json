@@ -10,9 +10,12 @@
     "start": "tsx --env-file=.env src/cli.ts"
   },
   "dependencies": {
-    "@repositories-wiki/core": "1.0.0",
+    "@microsoft/tiktokenizer": "^1.0.10",
     "@opencode-ai/sdk": "1.2.24",
-    "opencode-ai": "1.2.26"
+    "@repositories-wiki/core": "1.0.0",
+    "opencode-ai": "1.2.26",
+    "p-limit": "^7.3.0",
+    "p-retry": "^7.1.1"
   },
   "devDependencies": {
     "tsx": "^4.21.0"

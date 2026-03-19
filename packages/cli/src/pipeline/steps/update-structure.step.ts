@@ -1,5 +1,5 @@
 import fs from "fs";
-import { logger, generateFileTree } from "@repositories-wiki/core";
+import { logger, generateFileTree, getStructureModel } from "@repositories-wiki/core";
 import type { PipelineContext, PipelineStep } from "../types";
 import { generateUpdateWikiStructurePrompt } from "../prompts";
 import { parseUpdateWikiStructure } from "../../parsers";
@@ -45,13 +45,14 @@ export class UpdateStructureStep implements PipelineStep {
       context.changedFilesDirPath
     );
 
-    const response = await context.agent.run({
+    const { result, sessionId } = await context.agent.run({
       repoPath: context.repoPath,
       prompt,
       title: "Update Wiki Structure",
+      llmConfig: getStructureModel(context.config),
     });
 
-    const wikiStructure = parseUpdateWikiStructure(response, context.previousWikiStructure);
+    const wikiStructure = parseUpdateWikiStructure(result, context.previousWikiStructure);
     logger.info(`Updated structure with ${wikiStructure.pages.length} pages`);
 
     // Log page status breakdown
@@ -69,7 +70,8 @@ export class UpdateStructureStep implements PipelineStep {
     return {
       ...context,
       wikiStructure,
-      changedFilesDirPath: undefined, // Remove from context after cleanup
+      structureSessionId: sessionId,
+      changedFilesDirPath: undefined,
     };
   }
 }

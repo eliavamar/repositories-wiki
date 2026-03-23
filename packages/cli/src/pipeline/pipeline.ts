@@ -18,11 +18,10 @@ export class WikiGeneratorPipeline {
     logger.info(`Repository: ${config.repositoryUrl}`);
 
     context.agent = new CodingAgent();
-    await context.agent.startServer(config.providerConfig);
+    await context.agent.startServer(config.providerConfig, config.llmExploration);
 
     try {
       for (const step of this.steps) {
-        // Check if pipeline should be skipped
         if (context.skipPipeline) {
           logger.info(`━━━ Skipping step: ${step.name} (${context.skipReason}) ━━━`);
           continue;
@@ -54,8 +53,9 @@ export class WikiGeneratorPipeline {
         wikiStructure: context.wikiStructure,
         commitId: context.commitId,
       };
-    } finally {
+    } catch (e){
       await this.cleanup(context);
+      throw e
     }
   }
 

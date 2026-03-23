@@ -1,11 +1,7 @@
 import { createByModelName } from "@microsoft/tiktokenizer";
 import { logger } from "@repositories-wiki/core";
 import type {  Tokenizer } from "./types";
-
-export const MAX_PRELOADED_TOKENS = 90_000;
-
-const TOKENIZER_MODEL = "gpt-4o";
-
+import { TOKENIZER_MODEL } from "./consts";
 
 
 export async function createTokenizer(): Promise<Tokenizer | null> {

@@ -8,4 +8,5 @@ export type OpencodeClient = Awaited<ReturnType<typeof createOpencode>>["client"
 export interface PromptBody {
   parts: TextPartInput[];
   model?: LlmConfig;
+  agent?: string;
 }

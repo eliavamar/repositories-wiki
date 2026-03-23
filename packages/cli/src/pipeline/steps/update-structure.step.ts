@@ -1,8 +1,9 @@
 import fs from "fs";
-import { logger, generateFileTree, getStructureModel } from "@repositories-wiki/core";
+import { logger } from "@repositories-wiki/core";
 import type { PipelineContext, PipelineStep } from "../types";
 import { generateUpdateWikiStructurePrompt } from "../prompts";
 import { parseUpdateWikiStructure } from "../../parsers";
+import { walkRepo, formatFileTree } from "../../utils/files";
 
 export class UpdateStructureStep implements PipelineStep {
   readonly name = "Update Structure";
@@ -33,7 +34,8 @@ export class UpdateStructureStep implements PipelineStep {
       };
     }
 
-    const fileTree = generateFileTree(context.repoPath);
+    const entries = walkRepo(context.repoPath);
+    const fileTree = formatFileTree(entries);
     logger.debug(`Generated file tree with structure`);
 
     const prompt = generateUpdateWikiStructurePrompt(
@@ -49,7 +51,7 @@ export class UpdateStructureStep implements PipelineStep {
       repoPath: context.repoPath,
       prompt,
       title: "Update Wiki Structure",
-      llmConfig: getStructureModel(context.config),
+      llmConfig: context.config.llm,
     });
 
     const wikiStructure = parseUpdateWikiStructure(result, context.previousWikiStructure);

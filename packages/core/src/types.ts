@@ -30,6 +30,7 @@ export interface AgentInput {
   title?: string;
   parentId?: string;
   llmConfig?: LlmConfig;
+  agent?: string;
 }
 
 export interface AgentRunResult {
@@ -44,21 +45,11 @@ export const WikiGeneratorConfigSchema = z.object({
   wikiBranch: z.string().default("repository-wiki-memory"),
   commitId: z.string().optional(),
   providerConfig: ProviderConfigSchema.optional(),
-  defaultLlm: LlmConfigSchema.optional(),
-  structureGenerationLlm: LlmConfigSchema.optional(),
-  pagesGenerationLlm: LlmConfigSchema.optional(),
-}).refine(
-  (data) => data.defaultLlm || (data.structureGenerationLlm && data.pagesGenerationLlm),
-  { message: "Either defaultLlm must be provided, or both structureGenerationLlm and pagesGenerationLlm" }
-);
+  llm: LlmConfigSchema,
+  llmExploration: LlmConfigSchema.optional(),
+})
 
-export function getStructureModel(config: WikiGeneratorConfig): LlmConfig {
-  return config.structureGenerationLlm ?? config.defaultLlm!;
-}
 
-export function getPagesModel(config: WikiGeneratorConfig): LlmConfig {
-  return config.pagesGenerationLlm ?? config.defaultLlm!;
-}
 
 
 // === Relevant File Schema ===
@@ -87,7 +78,6 @@ export const WikiSectionSchema = z.object({
   id: z.string(),
   title: z.string(),
   pages: z.array(z.string()),
-  subsections: z.array(z.string()).optional(),
 });
 
 // === Wiki Structure Model Schema ===

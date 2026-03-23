@@ -195,17 +195,12 @@ function parseSections(xml: string): WikiSection[] {
       if (pm[1]) pageRefs.push(pm[1].trim());
     }
 
-    const subsections: string[] = [];
-    const subsectionMatches = sectionXml.matchAll(/<section_ref>([^<]+)<\/section_ref>/g);
-    for (const sm of subsectionMatches) {
-      if (sm[1]) subsections.push(sm[1].trim());
-    }
+
 
     sections.push({
       id,
       title: extractTag(sectionXml, "title"),
       pages: pageRefs,
-      subsections: subsections.length > 0 ? subsections : undefined,
     });
   }
 

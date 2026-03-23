@@ -1,19 +1,15 @@
 import pLimit from "p-limit";
 import pRetry from "p-retry";
-import { logger, getPagesModel } from "@repositories-wiki/core";
-import type { WikiStructureModel, WikiPage, LlmConfig } from "@repositories-wiki/core";
+import { logger } from "@repositories-wiki/core";
+import type { WikiStructureModel, WikiPage } from "@repositories-wiki/core";
 import type { PipelineContext, PipelineStep } from "../types";
 import { generatePageContentPrompt } from "../prompts";
 import { parsePageContent } from "../../parsers";
-import { calculateFileImportance, getPreloadedFilesForPage, wikiFilesToFileContentsMap, } from "../../utils/utils";
+import { calculateFileImportance, getPreloadedFilesForPage, wikiFilesToFileContentsMap } from "../../utils/files";
 import { createTokenizer } from "../../utils/tokenizer";
+import { CONCURRENCY_LIMIT, MAX_RETRIES } from "../../utils/consts";
 
-// Concurrency limit for parallel page generation
-// Limiting to 5 concurrent requests to avoid API rate limiting
-const CONCURRENCY_LIMIT = 16;
 
-// Retry configuration for failed page generation
-const MAX_RETRIES = 5;
 
 /** Result of a single page generation attempt */
 interface PageGenerationResult {
@@ -37,8 +33,7 @@ export class GeneratePagesStep implements PipelineStep {
       throw new Error("wikiStructure is required");
     }
 
-    const { wikiStructure, agent, repoPath, repoName, flowType, structureSessionId, config } = context;
-    const pagesLlm: LlmConfig = getPagesModel(config);
+    const { wikiStructure, agent, repoPath, repoName, flowType, structureSessionId } = context;
 
     // Determine which pages need content generation
     const pagesToGenerate = this.getPagesToGenerate(wikiStructure.pages, flowType);
@@ -60,20 +55,17 @@ export class GeneratePagesStep implements PipelineStep {
     const allPreloadedFiles = await wikiFilesToFileContentsMap(pagesToGenerate, repoPath);
     logger.info(`Pre-loaded ${allPreloadedFiles.size} unique source files for page generation`);
 
-    // Create a concurrency limiter to avoid API rate limiting
     const limit = pLimit(CONCURRENCY_LIMIT);
     let completedCount = 0;
     const totalCount = pagesToGenerate.length;
     const failedPages: string[] = [];
 
-    // Create tasks that return PageGenerationResult
     const pageGenerationTasks = pagesToGenerate.map((page) =>
       limit(async (): Promise<PageGenerationResult> => {
         const statusLabel = page.status ? ` [${page.status}]` : "Page without content";
         logger.info(`Generating content for: ${page.title}${statusLabel}`);
 
         try {
-          // Use p-retry for automatic retries with exponential backoff
           const result = await pRetry(
             async () => {
               const sectionTitle = findSectionTitle(wikiStructure, page.id);
@@ -90,8 +82,7 @@ export class GeneratePagesStep implements PipelineStep {
                 repoPath,
                 prompt,
                 title: `Generate: ${page.title}`,
-                parentId: structureSessionId,
-                llmConfig: pagesLlm,
+                llmConfig: context.config.llmExploration || context.config.llm,
               });
 
               return parsePageContent(result);

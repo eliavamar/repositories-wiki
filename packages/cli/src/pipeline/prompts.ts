@@ -1,7 +1,15 @@
 import type { WikiPage, WikiStructureModel, ChangedFilesResult } from "@repositories-wiki/core";
+import { FileContentsMap } from "../utils/types";
 
 
-export function generateWikiStructurePrompt(repoName: string, commitId: string, fileTree: string): string {
+export function generateWikiStructurePrompt(
+  repoName: string,
+  commitId: string,
+  fileTree: string,
+  preloadedCoreFiles?: FileContentsMap
+): string {
+  const coreFilesSection = buildCoreFilesSection(preloadedCoreFiles);
+
   return `
 Analyze this GitHub repository ${repoName} and design the most appropriate wiki structure for it.
 
@@ -10,17 +18,32 @@ Analyze this GitHub repository ${repoName} and design the most appropriate wiki 
 <file_tree>
 ${fileTree}
 </file_tree>
+${coreFilesSection}
 
 ## Your Task
 
-Study the codebase carefully and infer:
+Using the file tree and pre-loaded core files above, infer:
 - What kind of project this is (e.g., CLI tool, web app, library, data pipeline, monorepo)
 - What its key subsystems and responsibilities are
 - What a developer would need to understand to work with it effectively
+If you need more information you can accses code base.
 
 Then design a wiki from scratch — **do not use a fixed template**. The sections and pages should emerge naturally from the repository's actual content and complexity.
 
 ## Guidelines
+
+**Pages** 
+- When designing the wiki structure, include pages that would benefit from visual diagrams, such as:
+    - Architecture overviews
+    - Data flow descriptions
+    - Component relationships
+    - Process workflows
+    - State machines
+    - Class hierarchies
+- A small/focused repo may need only 4–6 pages
+- A medium repo typically warrants 6–12 pages
+- A large or complex repo may justify up to 12–17 pages
+- NEVER generate more than 20 pages total.
 
 **Sections** should reflect the real conceptual boundaries of *this* project. Common themes to consider (use only what applies):
 - How the system is structured and why
@@ -31,11 +54,6 @@ Then design a wiki from scratch — **do not use a fixed template**. The section
 - Any domain-specific concerns (AI models, auth, real-time systems, etc.)
 
 Invent section names that are specific and meaningful for this repo. Avoid generic titles like "Miscellaneous" or "Other."
-
-**Pages** should each cover one focused, self-contained topic. Calibrate the total page count to the repository's actual complexity:
-- A small/focused repo may need only 4–6 pages
-- A medium repo typically warrants 8–14 pages
-- A large or complex repo may justify up to 17–22 pages
 
 Avoid creating pages that would be redundant, near-empty, or that repeat each other. Every page should earn its place.
 
@@ -56,9 +74,7 @@ Return your analysis in the following XML format:
         <page_ref>page-1</page_ref>
         <page_ref>page-2</page_ref>
       </pages>
-      <subsections>
-        <section_ref>section-2</section_ref>
-      </subsections>
+
     </section>
     <!-- More sections as needed -->
   </sections>
@@ -84,7 +100,56 @@ IMPORTANT:
 2. Page count must be proportional to the repository's size and complexity, not a fixed number
 3. Every page's relevant_files must reference real paths visible in the file tree above
 4. Each page should cover a distinct aspect — no overlap, no filler pages
+5. Each page Should have at least 5 relevant_files to ensure comprehensive documentation coverage.
 `;
+}
+
+/**
+ * Prompt for a fast LLM call that infers the most important files from a file tree.
+ * Used to pre-load files into context before structure generation, reducing the need
+ * for the agent to make tool calls during the main generation step.
+ * The LLM should NOT access the codebase — only analyze the file tree text.
+ */
+export function inferImportantFilesPrompt(fileTree: string, maxFiles: number = 50): string {
+  return `You are analyzing a repository's file tree to identify the most architecturally important source files.
+
+## File Tree
+
+<file_tree>
+${fileTree}
+</file_tree>
+
+## Your Task
+
+From the file tree above, select up to ${maxFiles} files that are most important for understanding this project's architecture, design, and key functionality. These files will be pre-loaded as context for generating wiki documentation.
+
+**Prioritize:**
+1. Entry points (main files, index files, app files)
+2. Configuration files (package.json, tsconfig, build configs, environment configs)
+3. Core type definitions, interfaces, schemas, and models
+4. Route definitions, API endpoints, controllers
+5. Key service/business logic files
+6. Core utility and helper modules
+7. Database schemas, migrations, ORM models
+
+**Exclude:**
+- Test files (*.test.*, *.spec.*, __tests__/*)
+- Generated/build output files
+- Lock files (package-lock.json, yarn.lock)
+- Asset files (images, fonts, CSS-only files)
+- Documentation files (*.md) except README.md
+
+## Output Format
+
+Return ONLY a list of file paths, one per line, wrapped in XML tags. No explanations, no other text.
+
+<important_files>
+path/to/file1.ts
+path/to/file2.ts
+</important_files>
+
+IMPORTANT: Only include files that are visible in the file tree above. Do NOT invent paths.
+Do NOT access the codebase — base your selection entirely on the file tree.`;
 }
 
 export function generateUpdateWikiStructurePrompt(
@@ -193,7 +258,6 @@ Each section should contain relevant pages. For example, the "Frontend Component
 - Only mark pages as UPDATE if the changes actually affect their content
 - When adding new pages, assign unique IDs (e.g., "page-13", "new-feature-page")
 - If a section becomes empty after removing pages, remove the section too
-- Maintain the section hierarchy (rootSections -> sections -> subsections)
 
 ## Output Format
 
@@ -210,9 +274,6 @@ Return the updated wiki structure in the following XML format:
         <page_ref>page-1</page_ref>
         <page_ref>page-2</page_ref>
       </pages>
-      <subsections>
-        <section_ref>section-2</section_ref>
-      </subsections>
     </section>
     <!-- More sections as needed -->
   </sections>
@@ -283,7 +344,7 @@ Your task is to generate a comprehensive and accurate technical wiki page in Mar
 
 You will be given:
 1. The "[WIKI_PAGE_TOPIC]" for the page you need to create.
-2. A list of "[RELEVANT_SOURCE_FILES]" from the project that you MUST use as the sole basis for the content. The content of the relevant source files is pre-loaded below. Use these as your primary source of truth. If you need additional context from files not provided below, you can still access the codebase. You MUST use AT LEAST 5 relevant source files for comprehensive coverage - if fewer are provided, search for additional related files in the codebase.
+2. A list of \"[RELEVANT_SOURCE_FILES]\" from the project that you MUST use as the sole basis for the content. The content of the relevant source files is pre-loaded below. Use these as your primary source of truth.
 
 **Project Context:**
 - **Repository Name:** ${repoName}
@@ -300,8 +361,7 @@ Your response MUST be wrapped in the following XML structure inside a \`<details
 Format your response EXACTLY like this:
 <details>
 <RELEVANT_SOURCE_FILES>
-${page.relevantFiles.map(f => `- [${f.filePath}](${f.filePath})`).join('\n')}
-<!-- Add additional relevant files if fewer than 5 were provided -->
+${page.relevantFiles.map(f => `- [${f.filePath}](${f.filePath})`).join('\\n')}
 </RELEVANT_SOURCE_FILES>
 <content>
 # ${page.title}
@@ -311,7 +371,7 @@ ${page.relevantFiles.map(f => `- [${f.filePath}](${f.filePath})`).join('\n')}
 </details>
 
 IMPORTANT:
-- The \`<RELEVANT_SOURCE_FILES>\` section MUST list ALL source files you used to generate the content. There MUST be AT LEAST 5 source files listed.
+- The \`<RELEVANT_SOURCE_FILES>\` section MUST list ALL source files you used to generate the content.
 - The \`<content>\` section contains the actual wiki page in Markdown format, starting with the H1 heading \`# ${page.title}\`.
 
 Based ONLY on the content of the \`[RELEVANT_SOURCE_FILES]\`:
@@ -323,40 +383,14 @@ Based ONLY on the content of the \`[RELEVANT_SOURCE_FILES]\`:
     *   Identify key functions, classes, data structures, API endpoints, or configuration elements pertinent to that section.
 
 3.  **Mermaid Diagrams:**
-    *   EXTENSIVELY use Mermaid diagrams (e.g., \`flowchart TD\`, \`sequenceDiagram\`, \`classDiagram\`, \`erDiagram\`, \`graph TD\`) to visually represent architectures, flows, relationships, and schemas found in the source files.
-    *   Ensure diagrams are accurate and directly derived from information in the \`[RELEVANT_SOURCE_FILES]\`.
-    *   Provide a brief explanation before or after each diagram to give context.
-    *   CRITICAL: All diagrams MUST follow strict vertical orientation:
-       - Use "graph TD" (top-down) directive for flow diagrams
-       - NEVER use "graph LR" (left-right)
-       - Maximum node width should be 3-4 words
-       - For sequence diagrams:
-         - Start with "sequenceDiagram" directive on its own line
-         - Define ALL participants at the beginning using "participant" keyword
-         - Optionally specify participant types: actor, boundary, control, entity, database, collections, queue
-         - Use descriptive but concise participant names, or use aliases: "participant A as Alice"
-         - Use the correct Mermaid arrow syntax (8 types available):
-           - -> solid line without arrow (rarely used)
-           - --> dotted line without arrow (rarely used)
-           - ->> solid line with arrowhead (most common for requests/calls)
-           - -->> dotted line with arrowhead (most common for responses/returns)
-           - ->x solid line with X at end (failed/error message)
-           - -->x dotted line with X at end (failed/error response)
-           - -) solid line with open arrow (async message, fire-and-forget)
-           - --) dotted line with open arrow (async response)
-           - Examples: A->>B: Request, B-->>A: Response, A->xB: Error, A-)B: Async event
-         - Use +/- suffix for activation boxes: A->>+B: Start (activates B), B-->>-A: End (deactivates B)
-         - Group related participants using "box": box GroupName ... end
-         - Use structural elements for complex flows:
-           - loop LoopText ... end (for iterations)
-           - alt ConditionText ... else ... end (for conditionals)
-           - opt OptionalText ... end (for optional flows)
-           - par ParallelText ... and ... end (for parallel actions)
-           - critical CriticalText ... option ... end (for critical regions)
-           - break BreakText ... end (for breaking flows/exceptions)
-         - Add notes for clarification: "Note over A,B: Description", "Note right of A: Detail"
-         - Use autonumber directive to add sequence numbers to messages
-         - NEVER use flowchart-style labels like A--|label|-->B. Always use a colon for labels: A->>B: My Label
+    *   Use Mermaid diagrams (flowchart TD, sequenceDiagram, classDiagram, erDiagram) to visually represent architectures, flows, relationships, and schemas found in the source files.
+    *   Ensure diagrams are accurate and derived from the source files. Provide a brief explanation before or after each diagram.
+    *   CRITICAL diagram rules:
+       - Use \"graph TD\" (top-down) for flow diagrams — NEVER use \"graph LR\" (left-right)
+       - Maximum node width: 3-4 words
+       - For sequence diagrams: define all participants first using \"participant\" keyword, use ->> for requests and -->> for responses, use +/- for activation boxes
+       - Use structural elements where appropriate: loop, alt/else, opt, par/and, break
+       - NEVER use flowchart-style labels like A--|label|-->B — always use A->>B: Label
 
 4.  **Tables:**
     *   Use Markdown tables to summarize information such as:
@@ -380,15 +414,8 @@ Based ONLY on the content of the \`[RELEVANT_SOURCE_FILES]\`:
 
 8.  **Clarity and Conciseness:** Use clear, professional, and concise technical language suitable for other developers working on or learning about the project. Avoid unnecessary jargon, but use correct technical terms where appropriate.
 
-9.  **Conclusion/Summary:** End with a brief summary paragraph if appropriate for "${page.title}", reiterating the key aspects covered and their significance within the project.
+9.  **Conclusion/Summary:** End with a brief summary paragraph if appropriate for \"${page.title}\", reiterating the key aspects covered and their significance within the project.
 
-
-Remember:
-- Ground every claim in the provided source files.
-- Prioritize accuracy and direct representation of the code's functionality and structure.
-- Structure the document logically for easy understanding by other developers.
-- Your response MUST start with \`<details>\` and use the exact XML structure: \`<RELEVANT_SOURCE_FILES>\` followed by \`<content>\`.
-- Do NOT include any text before the \`<details>\` block.
 ${preloadedFilesSection}`;
 }
 
@@ -455,6 +482,31 @@ function buildPreloadedFilesSection(preloadedFiles?: Map<string, string>): strin
   const parts: string[] = [
     "\n\n## Pre-loaded Source Files\n",
     "The following source files have been pre-loaded for your reference. Use these as your primary source of truth for writing the wiki page.\n",
+  ];
+
+  for (const [filePath, content] of preloadedFiles) {
+    const lang = getLanguageForFile(filePath);
+    parts.push(`### ${filePath}`);
+    parts.push(`\`\`\`${lang}`);
+    parts.push(content);
+    parts.push("```\n");
+  }
+
+  return parts.join("\n");
+}
+
+/**
+ * Build the pre-loaded core repository files section for the structure generation prompt.
+ * These are key files (entry points, configs, types, etc.) automatically detected
+ * based on the repository's technology stack.
+ * Returns an empty string if no files are provided.
+ */
+function buildCoreFilesSection(preloadedFiles?: Map<string, string>): string {
+  if (!preloadedFiles || preloadedFiles.size === 0) return "";
+
+  const parts: string[] = [
+    "\n## Pre-loaded Core Repository Files\n",
+    "The following core files from the repository have been pre-loaded for your reference. Use these to understand the project's technology stack, architecture, and key components.\n",
   ];
 
   for (const [filePath, content] of preloadedFiles) {

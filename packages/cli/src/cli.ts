@@ -59,15 +59,16 @@ export async function run(): Promise<void> {
   const config: WikiGeneratorConfig = {
     repositoryUrl: "https://github.wdf.sap.corp/devx-wing/vscode-service-center",
     githubToken: process.env.GITHUB_TOKEN,
-    wikiBranch: "repository-wiki-memory3",
-    structureGenerationLlm: {
+    wikiBranch: "memory",
+    llm: {
+      providerID: "sap-ai-core",
+      modelID: "anthropic--claude-4.5-sonnet",
+    },
+    llmExploration:{
       providerID: "sap-ai-core",
       modelID: "anthropic--claude-4.5-haiku",
-    },
-    pagesGenerationLlm: {
-      providerID: "sap-ai-core",
-      modelID: "anthropic--claude-4.5-haiku",
-    },
+    }
+    
   };
   await main(config);
 }

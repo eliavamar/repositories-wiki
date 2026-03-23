@@ -1,7 +1,7 @@
 import { createOpencodeClient, createOpencodeServer } from "@opencode-ai/sdk";
 import type { Session, Part, OpencodeClient } from "@opencode-ai/sdk";
 import { existsSync } from "fs";
-import { logger, type AgentInput, type AgentRunResult, type ProviderConfig } from "@repositories-wiki/core";
+import { logger, type AgentInput, type AgentRunResult, type LlmConfig, type ProviderConfig } from "@repositories-wiki/core";
 import type { PromptBody } from "./types";
 
 /**
@@ -20,7 +20,7 @@ export class CodingAgent {
   // Client state (cached for reuse) - Map of repoPath to client
   private clients: Map<string, OpencodeClient> = new Map();
 
-  async startServer(providerConfig?: ProviderConfig): Promise<void> {
+  async startServer(providerConfig?: ProviderConfig, explorationLlm?: LlmConfig): Promise<void> {
     logger.info(`Starting server on ${this.serverUrl}`);
 
     if (this.server) {
@@ -30,7 +30,7 @@ export class CodingAgent {
       logger.debug("Existing server closed");
     }
 
-    const config = this.buildConfig(providerConfig);
+    const config = this.buildConfig(providerConfig, explorationLlm);
     logger.debug("Creating new OpenCode server", { hostname: this.serverHost, port: this.serverPort });
     this.server = await createOpencodeServer({
       hostname: this.serverHost,
@@ -42,21 +42,21 @@ export class CodingAgent {
 
 
   async run(input: AgentInput): Promise<AgentRunResult> {
-    const { repoPath, prompt, title, parentId, llmConfig } = input;
-    logger.info(`Starting run for repo: ${repoPath}`, { title, parentId, llmConfig });
+    const { repoPath, prompt, title, llmConfig, agent } = input;
+    logger.info(`Starting run for repo: ${repoPath}`, { title, llmConfig, agent });
 
     this.validateRepoPath(repoPath);
     
     logger.debug("Creating/Get client for repo:", { repoPath });
     const client = this.getOrCreateClient(repoPath);
 
-    logger.debug("Creating session", { title, parentId });
-    const session = await this.createSession(client, title, parentId);
+    const session = await this.createSession(client, title);
     logger.debug(`Session created: ${session.id}`);
 
     const body: PromptBody = {
       parts: [{ type: "text" as const, text: prompt }],
       model: llmConfig,
+      agent,
     };
     logger.debug("Generating response", { sessionId: session.id, llmConfig });
     const result = await this.generate(client, session.id, body);
@@ -157,20 +157,28 @@ export class CodingAgent {
   }
 
 
-  private buildConfig(providerConfig?: ProviderConfig) {
-    if (!providerConfig?.apiKey) {
-      return undefined;
-    }
+  private buildConfig(providerConfig?: ProviderConfig, explorationLlm?: LlmConfig) {
+    const config: Record<string, unknown> = {};
 
-    return {
-      provider: {
+    if (providerConfig?.apiKey) {
+      config.provider = {
         [providerConfig.provider]: {
           options: {
             apiKey: providerConfig.apiKey,
           },
         },
-      },
-    };
+      };
+    }
+
+    if (explorationLlm) {
+      config.agent = {
+        explore: {
+          model: `${explorationLlm.providerID}/${explorationLlm.modelID}`,
+        },
+      };
+    }
+
+    return Object.keys(config).length > 0 ? config : undefined;
   }
 
 

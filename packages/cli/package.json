@@ -15,9 +15,11 @@
     "@repositories-wiki/core": "1.0.0",
     "opencode-ai": "1.2.26",
     "p-limit": "^7.3.0",
-    "p-retry": "^7.1.1"
+    "p-retry": "^7.1.1",
+    "picomatch": "^4.0.3"
   },
   "devDependencies": {
+    "@types/picomatch": "^4.0.2",
     "tsx": "^4.21.0"
   }
 }

@@ -10,13 +10,12 @@ import {
 } from "./pipeline";
 
 export async function generateWiki(config: WikiGeneratorConfig): Promise<PipelineResult> {
-  // Parse config through Zod to apply defaults (e.g., wikiBranch defaults to "repository-wiki-memory")
   const validatedConfig = WikiGeneratorConfigSchema.parse(config);
   
   const pipeline = new WikiGeneratorPipeline()
     .addStep(new CloneRepositoryStep())
     .addStep(new DetectFlowStep())
-    .addStep(new StructureStep())  // Delegates to GenerateStructureStep or UpdateStructureStep based on flowType
+    .addStep(new StructureStep()) 
     .addStep(new GeneratePagesStep())
     .addStep(new PushToGitHubStep());
 

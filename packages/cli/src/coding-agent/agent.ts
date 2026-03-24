@@ -1,23 +1,16 @@
-import { createOpencodeClient, createOpencodeServer } from "@opencode-ai/sdk";
-import type { Session, Part, OpencodeClient } from "@opencode-ai/sdk";
+import { createOpencodeClient, createOpencodeServer } from "@opencode-ai/sdk/v2";
+import type { Session, Part, OpencodeClient } from "@opencode-ai/sdk/v2";
 import { existsSync } from "fs";
-import { logger, type AgentInput, type AgentRunResult, type LlmConfig, type ProviderConfig } from "@repositories-wiki/core";
-import type { PromptBody } from "./types";
+import { logger, type LlmConfig, type ProviderConfig } from "@repositories-wiki/core";
+import { AgentInput, AgentRunError, AgentRunResult, type PromptBody } from "./types";
 
-/**
- * CodingAgent class for interacting with OpenCode AI
- * Manages server lifecycle and provides methods for running prompts
- */
 export class CodingAgent {
-  // Server configuration (instance variables)
   readonly serverHost = process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1";
   readonly serverPort = process.env.PLAYWRIGHT_SERVER_PORT ?? "4096";
   readonly serverUrl = `http://${this.serverHost}:${this.serverPort}`;
 
-  // Server state
   private server: { url: string; close(): void } | null = null;
 
-  // Client state (cached for reuse) - Map of repoPath to client
   private clients: Map<string, OpencodeClient> = new Map();
 
   async startServer(providerConfig?: ProviderConfig, explorationLlm?: LlmConfig): Promise<void> {
@@ -42,7 +35,7 @@ export class CodingAgent {
 
 
   async run(input: AgentInput): Promise<AgentRunResult> {
-    const { repoPath, prompt, title, llmConfig, agent } = input;
+    const { repoPath, prompt, title, llmConfig, agent, sessionId: existingSessionId } = input;
     logger.info(`Starting run for repo: ${repoPath}`, { title, llmConfig, agent });
 
     this.validateRepoPath(repoPath);
@@ -50,19 +43,33 @@ export class CodingAgent {
     logger.debug("Creating/Get client for repo:", { repoPath });
     const client = this.getOrCreateClient(repoPath);
 
-    const session = await this.createSession(client, title);
-    logger.debug(`Session created: ${session.id}`);
+    // Reuse existing session if sessionId is provided, otherwise create a new one
+    let sessionId: string;
+    if (existingSessionId) {
+      sessionId = existingSessionId;
+      logger.debug(`Reusing existing session: ${sessionId}`);
+    } else {
+      const session = await this.createSession(client, title);
+      sessionId = session.id;
+      logger.debug(`Session created: ${sessionId}`);
+    }
 
     const body: PromptBody = {
       parts: [{ type: "text" as const, text: prompt }],
       model: llmConfig,
       agent,
     };
-    logger.debug("Generating response", { sessionId: session.id, llmConfig });
-    const result = await this.generate(client, session.id, body);
-    logger.info(`Run completed successfully for session: ${session.id}`);
-    
-    return { result, sessionId: session.id };
+    logger.debug("Generating response", { sessionId, llmConfig });
+
+    try {
+      const result = await this.generate(client, sessionId, body);
+      logger.info(`Run completed successfully for session: ${sessionId}`);
+      return { result, sessionId };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logger.error(`Run failed for session: ${sessionId}`, { error: message });
+      throw new AgentRunError(message, sessionId, error);
+    }
   }
 
 
@@ -81,7 +88,7 @@ export class CodingAgent {
       
       for (const session of sessions) {
         try {
-          await client.session.delete({ path: { id: session.id } });
+          await client.session.delete({ sessionID: session.id });
           logger.debug("Session deleted", { sessionId: session.id });
         } catch (error) {
           logger.warn("Failed to delete session", { sessionId: session.id, error });
@@ -165,11 +172,11 @@ export class CodingAgent {
         [providerConfig.provider]: {
           options: {
             apiKey: providerConfig.apiKey,
+            stream: false
           },
         },
       };
     }
-
     if (explorationLlm) {
       config.agent = {
         explore: {
@@ -188,7 +195,8 @@ export class CodingAgent {
     parentId?: string
   ): Promise<Session> {
     const sessionResponse = await client.session.create({
-      body: { title, parentID: parentId },
+      title,
+      parentID: parentId,
     });
 
     const session: Session | undefined = sessionResponse.data;
@@ -220,8 +228,8 @@ export class CodingAgent {
     body: PromptBody,
   ): Promise<string> {
     const result = await client.session.prompt({
-      path: { id: sessionId },
-      body,
+      sessionID: sessionId,
+      ...body,
     });
     return this.extractTextFromParts(result.data?.parts || []);
   }

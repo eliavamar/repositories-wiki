@@ -1,7 +1,76 @@
 import type { WikiPage, WikiStructureModel, ChangedFilesResult } from "@repositories-wiki/core";
 import { FileContentsMap } from "../utils/types";
 
+function getWikiStructureSchema(commitId?: string){
+  if(commitId){
+    return `
+<wiki_structure>
+  <title>[Overall title for the wiki]</title>
+  <description>[Brief description of the repository]</description>
+  <commit_id>${commitId}</commit_id>
+  <sections>
+    <section id="section-1">
+      <title>[Section title]</title>
+      <pages>
+        <page_ref>page-1</page_ref>
+        <page_ref>page-2</page_ref>
+      </pages>
 
+    </section>
+    <!-- More sections as needed -->
+  </sections>
+  <pages>
+    <page id="page-1">
+      <title>[Page title]</title>
+      <description>[What this page covers, and whether a diagram would help]</description>
+      <relevant_files>
+        <file_path>[Path to a relevant file from the repo]</file_path>
+        <!-- More file paths as needed -->
+      </relevant_files>
+      <related_pages>
+        <related>page-2</related>
+      </related_pages>
+      <parent_section>section-1</parent_section>
+    </page>
+    <!-- More pages as needed -->
+  </pages>
+</wiki_structure>
+  `
+  }
+    return `
+<wiki_structure>
+  <title>[Overall title for the wiki]</title>
+  <description>[Brief description of the repository]</description>
+  <commit_id>[The commit id]</commit_id>
+  <sections>
+    <section id="section-1">
+      <title>[Section title]</title>
+      <pages>
+        <page_ref>page-1</page_ref>
+        <page_ref>page-2</page_ref>
+      </pages>
+
+    </section>
+    <!-- More sections as needed -->
+  </sections>
+  <pages>
+    <page id="page-1">
+      <title>[Page title]</title>
+      <description>[What this page covers, and whether a diagram would help]</description>
+      <relevant_files>
+        <file_path>[Path to a relevant file from the repo]</file_path>
+        <!-- More file paths as needed -->
+      </relevant_files>
+      <related_pages>
+        <related>page-2</related>
+      </related_pages>
+      <parent_section>section-1</parent_section>
+    </page>
+    <!-- More pages as needed -->
+  </pages>
+</wiki_structure>
+  ` 
+}
 export function generateWikiStructurePrompt(
   repoName: string,
   commitId: string,
@@ -21,12 +90,6 @@ ${fileTree}
 ${coreFilesSection}
 
 ## Your Task
-
-Using the file tree and pre-loaded core files above, infer:
-- What kind of project this is (e.g., CLI tool, web app, library, data pipeline, monorepo)
-- What its key subsystems and responsibilities are
-- What a developer would need to understand to work with it effectively
-If you need more information you can accses code base.
 
 Then design a wiki from scratch — **do not use a fixed template**. The sections and pages should emerge naturally from the repository's actual content and complexity.
 
@@ -60,40 +123,9 @@ Avoid creating pages that would be redundant, near-empty, or that repeat each ot
 **Diagrams:** Flag pages that would benefit from a visual by noting it in their description. Good candidates include: architecture overviews, data flows, component relationships, process workflows, state machines, and class hierarchies.
 
 ## Output Format
+  ${getWikiStructureSchema(commitId)}
 
 Return your analysis in the following XML format:
-
-<wiki_structure>
-  <title>[Overall title for the wiki]</title>
-  <description>[Brief description of the repository]</description>
-  <commit_id>${commitId}</commit_id>
-  <sections>
-    <section id="section-1">
-      <title>[Section title]</title>
-      <pages>
-        <page_ref>page-1</page_ref>
-        <page_ref>page-2</page_ref>
-      </pages>
-
-    </section>
-    <!-- More sections as needed -->
-  </sections>
-  <pages>
-    <page id="page-1">
-      <title>[Page title]</title>
-      <description>[What this page covers, and whether a diagram would help]</description>
-      <relevant_files>
-        <file_path>[Path to a relevant file from the repo]</file_path>
-        <!-- More file paths as needed -->
-      </relevant_files>
-      <related_pages>
-        <related>page-2</related>
-      </related_pages>
-      <parent_section>section-1</parent_section>
-    </page>
-    <!-- More pages as needed -->
-  </pages>
-</wiki_structure>
 
 IMPORTANT:
 1. Section and page titles must be derived from the actual repository — do not copy generic template names
@@ -101,6 +133,8 @@ IMPORTANT:
 3. Every page's relevant_files must reference real paths visible in the file tree above
 4. Each page should cover a distinct aspect — no overlap, no filler pages
 5. Each page Should have at least 5 relevant_files to ensure comprehensive documentation coverage.
+6. The output MUST be in the XML format specified above — return the complete <wiki_structure> element with all required nested elements
+7. Do NOT include any other text, explanations, or commentary outside the XML structure — return ONLY the <wiki_structure> XML block
 `;
 }
 
@@ -110,7 +144,7 @@ IMPORTANT:
  * for the agent to make tool calls during the main generation step.
  * The LLM should NOT access the codebase — only analyze the file tree text.
  */
-export function inferImportantFilesPrompt(fileTree: string, maxFiles: number = 50): string {
+export function inferImportantFilesPrompt(fileTree: string, maxFiles: number = 30): string {
   return `You are analyzing a repository's file tree to identify the most architecturally important source files.
 
 ## File Tree
@@ -419,6 +453,61 @@ Based ONLY on the content of the \`[RELEVANT_SOURCE_FILES]\`:
 ${preloadedFilesSection}`;
 }
 
+export function structureTimeoutRetryPrompt(): string {
+  return "Your previous response was cut off due to a timeout. Please provide a complete but more concise response. Make sure to wrap the entire wiki structure in <wiki_structure>...</wiki_structure> XML tags.";
+}
+
+export function structureParsingRetryPrompt(): string {
+  return `Your previous response could not be parsed. Please provide your response again using the exact XML format below:
+
+  ${getWikiStructureSchema()}
+
+IMPORTANT: Return ONLY the <wiki_structure> XML block with no other text outside it.`;
+}
+
+export function inferFilesTimeoutRetryPrompt(): string {
+  return "Your previous response was cut off due to a timeout. Please provide a complete but more concise response. Make sure to wrap the file list in <important_files>...</important_files> XML tags.";
+}
+
+export function inferFilesParsingRetryPrompt(): string {
+  return `Your previous response could not be parsed. Please provide your response again using the exact XML format below:
+
+<important_files>
+path/to/file1.ts
+path/to/file2.ts
+path/to/file3.ts
+</important_files>
+
+IMPORTANT: Return ONLY file paths (one per line) wrapped in <important_files> tags. No explanations, no other text.`;
+}
+
+export function pageContentTimeoutRetryPrompt(pageTitle: string): string {
+  return `Your previous response for page "${pageTitle}" was cut off due to a timeout. Please provide a complete but more concise response. Make sure to include <content>...</content> tags with the full page content.`;
+}
+
+export function pageContentParsingRetryPrompt(pageTitle: string): string {
+  return `Your previous response for page "${pageTitle}" could not be parsed. Please provide your response again using the exact XML format below:
+
+<details>
+<RELEVANT_SOURCE_FILES>
+- [path/to/file1.ts](path/to/file1.ts)
+- [path/to/file2.ts](path/to/file2.ts)
+</RELEVANT_SOURCE_FILES>
+<content>
+# ${pageTitle}
+
+[Your full wiki page content goes here in Markdown format]
+</content>
+</details>
+
+IMPORTANT:
+- The <RELEVANT_SOURCE_FILES> section MUST list ALL source files you used to generate the content.
+- The <content> section contains the actual wiki page in Markdown format, starting with the H1 heading # ${pageTitle}.
+- Do not include any text outside the <details> block.`;
+}
+
+// ─── Utilities ──────────────────────────────────────────────────────────────
+
 /** Map of file extensions to Markdown code block language identifiers */
 const EXTENSION_LANG_MAP: Record<string, string> = {
   ".ts": "typescript",
@@ -516,6 +605,13 @@ function buildCoreFilesSection(preloadedFiles?: Map<string, string>): string {
     parts.push(content);
     parts.push("```\n");
   }
+
+  parts.push(`
+Using the file tree and pre-loaded core files above, infer:
+  - What kind of project this is (e.g., CLI tool, web app, library, data pipeline, monorepo)
+  - What its key subsystems and responsibilities are
+  - What a developer would need to understand to work with it effectively
+If you need more information you can accses code base.`)
 
   return parts.join("\n");
 }

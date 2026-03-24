@@ -1,8 +1,8 @@
 import fs from "fs";
 import path from "path";
 import picomatch from "picomatch";
-import { logger } from "@repositories-wiki/core";
-import type { RelevantFile, WikiPage } from "@repositories-wiki/core";
+import { logger } from "@repositories-wiki/common";
+import type { RelevantFile, WikiPage } from "@repositories-wiki/common";
 import type { FileContentsMap, FilePattern, PriorityTier, Tokenizer, WalkEntry } from "./types";
 import { countTokens, isBinaryContent} from "./tokenizer";
 import { MAX_GENERATE_FILE_PRELOADED_TOKENS, MAX_STRUCTURE_PRELOADED_TOKENS, MAX_TREE_ITEMS, TECH_REGISTRY, TIERS, UNIVERSAL_PATTERNS, WALK_EXCLUSIONS } from "./consts";

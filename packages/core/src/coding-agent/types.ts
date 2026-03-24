@@ -1,5 +1,5 @@
 import { createOpencode, TextPartInput } from "@opencode-ai/sdk/v2";
-import type { LlmConfig } from "@repositories-wiki/core";
+import type { LlmConfig } from "@repositories-wiki/common";
 
 // Type for OpenCode client
 export type OpencodeClient = Awaited<ReturnType<typeof createOpencode>>["client"];

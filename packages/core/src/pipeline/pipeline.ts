@@ -1,5 +1,5 @@
-import { logger, gitService } from "@repositories-wiki/core";
-import type { WikiGeneratorConfig } from "@repositories-wiki/core";
+import { logger, gitService } from "@repositories-wiki/common";
+import type { WikiGeneratorConfig } from "@repositories-wiki/common";
 import { CodingAgent } from "../coding-agent/agent";
 import type { PipelineContext, PipelineStep, PipelineResult } from "./types";
 

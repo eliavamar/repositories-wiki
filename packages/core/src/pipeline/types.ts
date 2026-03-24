@@ -1,4 +1,4 @@
-import type { WikiGeneratorConfig, WikiStructureModel, ChangedFilesResult } from "@repositories-wiki/core";
+import type { WikiGeneratorConfig, WikiStructureModel, ChangedFilesResult } from "@repositories-wiki/common";
 import type { CodingAgent } from "../coding-agent/agent";
 
 /**

@@ -1,5 +1,5 @@
 import pRetry from "p-retry";
-import { logger } from "@repositories-wiki/core";
+import { logger } from "@repositories-wiki/common";
 import { AgentRunError, AgentRunResult } from "../coding-agent/types";
 import { MAX_RETRIES } from "./consts";
 

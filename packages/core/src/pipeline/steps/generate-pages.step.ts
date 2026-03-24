@@ -1,6 +1,6 @@
 import pLimit from "p-limit";
-import { logger } from "@repositories-wiki/core";
-import type { WikiStructureModel, WikiPage } from "@repositories-wiki/core";
+import { logger } from "@repositories-wiki/common";
+import type { WikiStructureModel, WikiPage } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
 import {
   generatePageContentPrompt,
@@ -13,7 +13,6 @@ import { createTokenizer } from "../../utils/tokenizer";
 import { CONCURRENCY_LIMIT, MAX_RETRIES } from "../../utils/consts";
 import { retryWithSessionRecovery } from "../../utils/retry";
 
-/** Result of a single page generation attempt */
 interface PageGenerationResult {
   page: WikiPage;
   success: boolean;

@@ -1,4 +1,4 @@
-import type { WikiStructureModel, WikiPage, WikiSection, PageStatus } from "@repositories-wiki/core";
+import type { WikiStructureModel, WikiPage, WikiSection, PageStatus } from "@repositories-wiki/common";
 
 export function parseWikiStructure(xmlResponse: string): WikiStructureModel {
   const wikiStructureMatch = xmlResponse.match(/<wiki_structure>([\s\S]*?)<\/wiki_structure>/);

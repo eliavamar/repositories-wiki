@@ -1,6 +1,6 @@
 import fs from "fs";
 import path from "path";
-import { gitService, logger } from "@repositories-wiki/core";
+import { gitService, logger } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
 
 export class PushToGitHubStep implements PipelineStep {

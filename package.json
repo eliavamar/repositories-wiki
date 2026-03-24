@@ -9,7 +9,6 @@
     "build:all": "npm run build --workspaces"
   },
   "dependencies": {
-    "opencode-darwin-arm64": "^1.2.24",
     "zod": "^3.24.1"
   },
   "devDependencies": {

@@ -33,28 +33,60 @@ export const WALK_EXCLUSIONS = new Set([
 ]);
 export const TECH_REGISTRY: TechDefinition[] = [
   {
-    id: "javascript-typescript",
-    name: "JavaScript/TypeScript",
+    id: "javascript",
+    name: "JavaScript",
     patterns: [
       {
-        tier: 1, 
-        globs: ["package.json", "tsconfig.json", "tsconfig.*.json"],
+        tier: 1,
+        globs: ["package.json"],
       },
       {
-        tier: 2, 
+        tier: 2,
         globs: [
-          "index.ts", "index.js",
-          "main.ts", "main.js",
-          "app.ts", "app.js",
-          "server.ts", "server.js",
-          "src/index.ts", "src/index.js",
-          "src/main.ts", "src/main.js",
-          "src/app.ts", "src/app.js",
-          "src/server.ts", "src/server.js",
+          "index.js",
+          "main.js",
+          "app.js",
+          "server.js",
+          "src/index.js",
+          "src/main.js",
+          "src/app.js",
+          "src/server.js",
         ],
       },
       {
-        tier: 3, 
+        tier: 4,
+        globs: [
+          "src/**/routes.js",
+          "src/**/router.js",
+          "src/**/api.js",
+        ],
+      },
+    ],
+  },
+
+  {
+    id: "typescript",
+    name: "TypeScript",
+    patterns: [
+      {
+        tier: 1,
+        globs: ["tsconfig.json", "tsconfig.*.json"],
+      },
+      {
+        tier: 2,
+        globs: [
+          "index.ts",
+          "main.ts",
+          "app.ts",
+          "server.ts",
+          "src/index.ts",
+          "src/main.ts",
+          "src/app.ts",
+          "src/server.ts",
+        ],
+      },
+      {
+        tier: 3,
         globs: [
           "src/types.ts", "src/types/index.ts",
           "src/**/types.ts", "src/**/types/index.ts",
@@ -64,16 +96,16 @@ export const TECH_REGISTRY: TechDefinition[] = [
         ],
       },
       {
-        tier: 4, 
+        tier: 4,
         globs: [
-          "src/**/routes.ts", "src/**/routes.js",
-          "src/**/router.ts", "src/**/router.js",
-          "src/**/api.ts", "src/**/api.js",
+          "src/**/routes.ts",
+          "src/**/router.ts",
+          "src/**/api.ts",
           "src/**/endpoints.ts",
         ],
       },
       {
-        tier: 5, 
+        tier: 5,
         globs: [
           "src/lib/index.ts", "src/core/index.ts",
           "src/utils/index.ts", "src/services/index.ts",

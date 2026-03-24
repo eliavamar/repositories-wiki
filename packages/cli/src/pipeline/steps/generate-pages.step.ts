@@ -1,15 +1,17 @@
 import pLimit from "p-limit";
-import pRetry from "p-retry";
 import { logger } from "@repositories-wiki/core";
 import type { WikiStructureModel, WikiPage } from "@repositories-wiki/core";
 import type { PipelineContext, PipelineStep } from "../types";
-import { generatePageContentPrompt } from "../prompts";
+import {
+  generatePageContentPrompt,
+  pageContentTimeoutRetryPrompt,
+  pageContentParsingRetryPrompt,
+} from "../prompts";
 import { parsePageContent } from "../../parsers";
 import { calculateFileImportance, getPreloadedFilesForPage, wikiFilesToFileContentsMap } from "../../utils/files";
 import { createTokenizer } from "../../utils/tokenizer";
 import { CONCURRENCY_LIMIT, MAX_RETRIES } from "../../utils/consts";
-
-
+import { retryWithSessionRecovery } from "../../utils/retry";
 
 /** Result of a single page generation attempt */
 interface PageGenerationResult {
@@ -33,7 +35,7 @@ export class GeneratePagesStep implements PipelineStep {
       throw new Error("wikiStructure is required");
     }
 
-    const { wikiStructure, agent, repoPath, repoName, flowType, structureSessionId } = context;
+    const { wikiStructure, agent, repoPath, repoName, flowType } = context;
 
     // Determine which pages need content generation
     const pagesToGenerate = this.getPagesToGenerate(wikiStructure.pages, flowType);
@@ -66,38 +68,31 @@ export class GeneratePagesStep implements PipelineStep {
         logger.info(`Generating content for: ${page.title}${statusLabel}`);
 
         try {
-          const result = await pRetry(
-            async () => {
-              const sectionTitle = findSectionTitle(wikiStructure, page.id);
-              const pageFiles = getPreloadedFilesForPage(page, allPreloadedFiles, tokenizer);
-              const prompt = generatePageContentPrompt(
-                page,
-                sectionTitle,
-                repoName,
-                wikiStructure.description,
-                pageFiles
-              );
+          const sectionTitle = findSectionTitle(wikiStructure, page.id);
+          const pageFiles = getPreloadedFilesForPage(page, allPreloadedFiles, tokenizer);
+          const originalPrompt = generatePageContentPrompt(
+            page,
+            sectionTitle,
+            repoName,
+            wikiStructure.description,
+            pageFiles,
+          );
 
-              const { result } = await agent.run({
+          const { parsed: result } = await retryWithSessionRecovery({
+            run: (prompt, sessionId) =>
+              agent.run({
                 repoPath,
                 prompt,
                 title: `Generate: ${page.title}`,
                 llmConfig: context.config.llmExploration || context.config.llm,
-              });
-
-              return parsePageContent(result);
-            },
-            {
-              retries: MAX_RETRIES,
-              onFailedAttempt: (error) => {
-                const errorMessage = error instanceof Error ? error.message : String(error);
-                logger.warn(
-                  `⚠ Failed: ${page.title} (attempt ${error.attemptNumber}/${MAX_RETRIES + 1}) - Retrying...`,
-                  { error: errorMessage }
-                );
-              },
-            }
-          );
+                sessionId,
+              }),
+            originalPrompt,
+            timeoutRetryPrompt: pageContentTimeoutRetryPrompt(page.title),
+            parsingRetryPrompt: pageContentParsingRetryPrompt(page.title),
+            parse: parsePageContent,
+            label: `page "${page.title}"`,
+          });
 
           // Update page with generated content
           page.content = result.content;
@@ -189,4 +184,3 @@ function findSectionTitle(wikiStructure: WikiStructureModel, pageId: string): st
 
   return "General";
 }
-

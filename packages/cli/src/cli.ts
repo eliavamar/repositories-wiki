@@ -62,7 +62,7 @@ export async function run(): Promise<void> {
     wikiBranch: "memory",
     llm: {
       providerID: "sap-ai-core",
-      modelID: "anthropic--claude-4.5-sonnet",
+      modelID: "anthropic--claude-4.6-sonnet",
     },
     llmExploration:{
       providerID: "sap-ai-core",

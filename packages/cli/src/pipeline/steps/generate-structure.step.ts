@@ -1,10 +1,18 @@
 import { logger } from "@repositories-wiki/core";
 import type { WikiStructureModel } from "@repositories-wiki/core";
 import type { PipelineContext, PipelineStep } from "../types";
-import { generateWikiStructurePrompt, inferImportantFilesPrompt } from "../prompts";
+import {
+  generateWikiStructurePrompt,
+  inferImportantFilesPrompt,
+  structureTimeoutRetryPrompt,
+  structureParsingRetryPrompt,
+  inferFilesTimeoutRetryPrompt,
+  inferFilesParsingRetryPrompt,
+} from "../prompts";
 import { parseWikiStructure, parseInferredFiles } from "../../parsers";
 import { walkRepo, formatFileTree, selectCoreFiles, loadInferredFiles } from "../../utils/files";
 import { createTokenizer } from "../../utils/tokenizer";
+import { retryWithSessionRecovery } from "../../utils/retry";
 
 export class GenerateStructureStep implements PipelineStep {
   readonly name = "Generate Structure";
@@ -53,7 +61,9 @@ export class GenerateStructureStep implements PipelineStep {
   }
 
   /**
-   * Generate wiki structure using the agent
+   * Generate wiki structure using the agent with retry logic:
+   * - Timeout/parsing errors: retry with same session + corrective prompt
+   * - General runtime errors: retry with a fresh session
    */
   private async generateWikiStructure(
     agent: NonNullable<PipelineContext['agent']>,
@@ -64,21 +74,24 @@ export class GenerateStructureStep implements PipelineStep {
     fileTree: string,
     enrichedFiles: Map<string, string>,
   ): Promise<{ wikiStructure: WikiStructureModel; sessionId: string }> {
-    const prompt = generateWikiStructurePrompt(repoName, commitId, fileTree, enrichedFiles);
+    const originalPrompt = generateWikiStructurePrompt(repoName, commitId, fileTree, enrichedFiles);
 
-    const { result, sessionId } = await agent.run({
-      repoPath,
-      prompt,
-      title: "Generate Wiki Structure",
-      llmConfig,
+    const { parsed: wikiStructure, sessionId } = await retryWithSessionRecovery({
+      run: (prompt, sessionId) =>
+        agent.run({ repoPath, prompt, title: "Generate Wiki Structure", llmConfig, sessionId }),
+      originalPrompt,
+      timeoutRetryPrompt: structureTimeoutRetryPrompt(),
+      parsingRetryPrompt: structureParsingRetryPrompt(),
+      parse: parseWikiStructure,
+      label: "structure generation",
     });
 
-    const wikiStructure = parseWikiStructure(result);
     return { wikiStructure, sessionId };
   }
 
   /**
-   * Make a fast, cheap LLM call to infer important files from the file tree
+   * Make a fast, cheap LLM call to infer important files from the file tree.
+   * Includes retry logic for timeout errors with session continuation.
    */
   private async inferAndLoadImportantFiles(
     agent: NonNullable<PipelineContext['agent']>,
@@ -91,28 +104,31 @@ export class GenerateStructureStep implements PipelineStep {
   ): Promise<Map<string, string>> {
     try {
       const inferPrompt = inferImportantFilesPrompt(fileTree);
-
       logger.info("Inferring important files from file tree (fast LLM call)...");
-      const { result: inferResult } = await agent.run({
-        repoPath,
-        prompt: inferPrompt,
-        title: "Infer Important Files",
-        llmConfig: llmExplorationConfig || llmConfig,
+
+      const { parsed: inferredPaths } = await retryWithSessionRecovery({
+        run: (prompt, sessionId) =>
+          agent.run({
+            repoPath,
+            prompt,
+            title: "Infer Important Files",
+            llmConfig: llmExplorationConfig || llmConfig,
+            sessionId,
+          }),
+        originalPrompt: inferPrompt,
+        timeoutRetryPrompt: inferFilesTimeoutRetryPrompt(),
+        parsingRetryPrompt: inferFilesParsingRetryPrompt(),
+        parse: parseInferredFiles,
+        label: "file inference",
       });
 
-      const inferredPaths = parseInferredFiles(inferResult);
       if (inferredPaths.length === 0) {
         logger.warn("No files inferred, using tier-selected files only");
         return coreFiles;
       }
 
       logger.info(`LLM inferred ${inferredPaths.length} important files, loading into context...`);
-      return await loadInferredFiles(
-        repoPath,
-        inferredPaths,
-        tokenizer,
-        coreFiles,
-      );
+      return await loadInferredFiles(repoPath, inferredPaths, tokenizer, coreFiles);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       logger.warn(`Failed to infer important files, using tier-selected files only: ${errorMessage}`);

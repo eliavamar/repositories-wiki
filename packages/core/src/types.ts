@@ -1,6 +1,5 @@
 import { z } from "zod";
 
-// === Git Clone Types ===
 export interface CloneOptions {
   token?: string;
   commitId?: string;
@@ -24,32 +23,16 @@ export const LlmConfigSchema = z.object({
 
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 
-export interface AgentInput {
-  repoPath: string;
-  prompt: string;
-  title?: string;
-  parentId?: string;
-  llmConfig?: LlmConfig;
-  agent?: string;
-}
-
-export interface AgentRunResult {
-  result: string;
-  sessionId: string;
-}
-
 
 export const WikiGeneratorConfigSchema = z.object({
   repositoryUrl: z.string().url(),
   githubToken: z.string().optional(),
-  wikiBranch: z.string().default("repository-wiki-memory"),
+  wikiBranch: z.string().default("memory"),
   commitId: z.string().optional(),
   providerConfig: ProviderConfigSchema.optional(),
   llm: LlmConfigSchema,
   llmExploration: LlmConfigSchema.optional(),
 })
-
-
 
 
 // === Relevant File Schema ===
@@ -99,15 +82,12 @@ export type WikiPage = z.infer<typeof WikiPageSchema>;
 export type WikiSection = z.infer<typeof WikiSectionSchema>;
 export type WikiStructureModel = z.infer<typeof WikiStructureModelSchema>;
 
-// === Git Changed Files Types ===
-/** Represents a single changed file with its diff content */
 export interface ChangedFile {
   path: string;
   changeType: "added" | "modified" | "deleted";
   diff: string;
 }
 
-/** Result of getChangedFiles operation */
 export interface ChangedFilesResult {
   files: ChangedFile[];
 }

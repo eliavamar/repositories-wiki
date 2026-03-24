@@ -138,12 +138,6 @@ IMPORTANT:
 `;
 }
 
-/**
- * Prompt for a fast LLM call that infers the most important files from a file tree.
- * Used to pre-load files into context before structure generation, reducing the need
- * for the agent to make tool calls during the main generation step.
- * The LLM should NOT access the codebase — only analyze the file tree text.
- */
 export function inferImportantFilesPrompt(fileTree: string, maxFiles: number = 30): string {
   return `You are analyzing a repository's file tree to identify the most architecturally important source files.
 

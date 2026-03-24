@@ -1,6 +1,8 @@
 import { createOpencodeClient, createOpencodeServer } from "@opencode-ai/sdk/v2";
 import type { Session, Part, OpencodeClient } from "@opencode-ai/sdk/v2";
 import { existsSync } from "fs";
+import { execSync } from "child_process";
+import { createConnection } from "net";
 import { logger, type LlmConfig, type ProviderConfig } from "@repositories-wiki/core";
 import { AgentInput, AgentRunError, AgentRunResult, type PromptBody } from "./types";
 
@@ -10,6 +12,8 @@ export class CodingAgent {
   readonly serverUrl = `http://${this.serverHost}:${this.serverPort}`;
 
   private server: { url: string; close(): void } | null = null;
+  private abortController: AbortController | null = null;
+  private exitHandler: (() => void) | null = null;
 
   private clients: Map<string, OpencodeClient> = new Map();
 
@@ -17,10 +21,18 @@ export class CodingAgent {
     logger.info(`Starting server on ${this.serverUrl}`);
 
     if (this.server) {
-      logger.debug("Closing existing server");
-      this.server.close();
-      this.server = null;
-      logger.debug("Existing server closed");
+      logger.debug("Closing existing server before starting a new one");
+      await this.closeServer();
+    }
+
+    this.abortController = new AbortController();
+
+    // Check that the port is free before attempting to start the server
+    const port = parseInt(this.serverPort);
+    if (await this.isPortInUse(port)) {
+      throw new Error(
+        `Port ${this.serverPort} is already in use. Cannot start coding agent server on ${this.serverUrl}`
+      );
     }
 
     const config = this.buildConfig(providerConfig, explorationLlm);
@@ -28,8 +40,19 @@ export class CodingAgent {
     this.server = await createOpencodeServer({
       hostname: this.serverHost,
       port: parseInt(this.serverPort),
+      signal: this.abortController.signal,
       config,
     });
+
+    // when the parent process exits (e.g. Ctrl+C, uncaught exception, process.exit).
+    this.exitHandler = () => {
+      if (this.abortController && !this.abortController.signal.aborted) {
+        this.abortController.abort();
+      }
+      this.forceKillProcessOnPort(parseInt(this.serverPort));
+    };
+    process.on("exit", this.exitHandler);
+
     logger.info(`Server started successfully on ${this.serverUrl}`);
   }
 
@@ -100,14 +123,87 @@ export class CodingAgent {
   }
 
 
-  closeServer(): void {
-    if (this.server) {
-      logger.info("Closing server");
-      this.server.close();
-      this.server = null;
-      logger.info("Server closed successfully");
-    } else {
+  async closeServer(): Promise<void> {
+    if (!this.server) {
       logger.debug("No server to close");
+      return;
+    }
+
+    const port = parseInt(this.serverPort);
+    logger.info("Closing server");
+
+    // First attempt: graceful close (sends SIGTERM to child process)
+    try {
+      this.server.close();
+    } catch (error) {
+      logger.warn("Graceful server close failed", { error });
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    if (await this.isPortInUse(port)) {
+      logger.debug("Port still in use after SIGTERM, aborting via AbortController");
+      if (this.abortController && !this.abortController.signal.aborted) {
+        try {
+          this.abortController.abort();
+        } catch (error) {
+          logger.warn("AbortController abort failed", { error });
+        }
+        // Wait for the abort to take effect
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+    }
+
+    // Last resort: SIGKILL any process still occupying the port
+    if (await this.isPortInUse(port)) {
+      logger.warn("Server port still in use after graceful shutdown, force killing process on port", { port });
+      this.forceKillProcessOnPort(port);
+      // Brief wait for the OS to release the port
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    // Remove the process exit handler to avoid double-cleanup
+    if (this.exitHandler) {
+      process.removeListener("exit", this.exitHandler);
+      this.exitHandler = null;
+    }
+
+    this.server = null;
+    this.abortController = null;
+    this.clients.clear();
+    logger.info("Server closed successfully");
+  }
+
+
+  /**
+   * Check if a port is currently in use by attempting a TCP connection.
+   */
+  private isPortInUse(port: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      const socket = createConnection({ port, host: this.serverHost });
+      socket.once("connect", () => {
+        socket.destroy();
+        resolve(true);
+      });
+      socket.once("error", () => {
+        socket.destroy();
+        resolve(false);
+      });
+      // Don't hang forever waiting for a connection
+      socket.setTimeout(1000, () => {
+        socket.destroy();
+        resolve(false);
+      });
+    });
+  }
+
+
+
+  private forceKillProcessOnPort(port: number): void {
+    try {
+      execSync(`kill -9 $(lsof -t -i :${port})`, { stdio: "ignore" });
+      logger.info("Force killed process on port", { port });
+    } catch {
     }
   }
 
@@ -128,7 +224,7 @@ export class CodingAgent {
       baseUrl: this.serverUrl,
       directory: repoPath,
       throwOnError: true,
-      fetch: this.createFetchWithTimeout(5 * 60 * 1000), // 5 minute timeout for long AI responses
+      fetch: this.createFetchWithTimeout(5), // 5 minute timeout for long AI responses
     });
     this.clients.set(repoPath, client);
     logger.debug("OpenCode client created successfully");

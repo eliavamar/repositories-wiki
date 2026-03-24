@@ -53,9 +53,8 @@ export class WikiGeneratorPipeline {
         wikiStructure: context.wikiStructure,
         commitId: context.commitId,
       };
-    } catch (e){
+    } finally {
       await this.cleanup(context);
-      throw e
     }
   }
 
@@ -67,7 +66,7 @@ export class WikiGeneratorPipeline {
 
     if (context.agent) {
       logger.info("Closing agent server...");
-      context.agent.closeServer();
+      await context.agent.closeServer();
     }
 
     if (context.repoPath) {

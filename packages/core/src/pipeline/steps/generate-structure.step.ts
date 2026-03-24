@@ -1,5 +1,5 @@
-import { logger } from "@repositories-wiki/core";
-import type { WikiStructureModel } from "@repositories-wiki/core";
+import { logger } from "@repositories-wiki/common";
+import type { WikiStructureModel } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
 import {
   generateWikiStructurePrompt,

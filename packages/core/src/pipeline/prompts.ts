@@ -1,4 +1,4 @@
-import type { WikiPage, WikiStructureModel, ChangedFilesResult } from "@repositories-wiki/core";
+import type { WikiPage, WikiStructureModel, ChangedFilesResult } from "@repositories-wiki/common";
 import { FileContentsMap } from "../utils/types";
 
 function getWikiStructureSchema(commitId?: string){

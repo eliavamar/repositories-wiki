@@ -1,5 +1,5 @@
 import { createByModelName } from "@microsoft/tiktokenizer";
-import { logger } from "@repositories-wiki/core";
+import { logger } from "@repositories-wiki/common";
 import type {  Tokenizer } from "./types";
 import { TOKENIZER_MODEL } from "./consts";
 

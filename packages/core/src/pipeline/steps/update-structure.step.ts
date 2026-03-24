@@ -1,5 +1,5 @@
 import fs from "fs";
-import { logger } from "@repositories-wiki/core";
+import { logger } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
 import { generateUpdateWikiStructurePrompt } from "../prompts";
 import { parseUpdateWikiStructure } from "../../parsers";

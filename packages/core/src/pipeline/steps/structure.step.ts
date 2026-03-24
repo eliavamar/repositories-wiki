@@ -1,4 +1,4 @@
-import { logger } from "@repositories-wiki/core";
+import { logger } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
 import { GenerateStructureStep } from "./generate-structure.step";
 import { UpdateStructureStep } from "./update-structure.step";

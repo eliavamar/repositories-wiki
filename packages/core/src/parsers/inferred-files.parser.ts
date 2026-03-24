@@ -1,4 +1,4 @@
-import { logger } from "@repositories-wiki/core";
+import { logger } from "@repositories-wiki/common";
 
 /**
  * Parse the LLM response from the "infer important files" call.

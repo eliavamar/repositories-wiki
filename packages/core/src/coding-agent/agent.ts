@@ -3,7 +3,7 @@ import type { Session, Part, OpencodeClient } from "@opencode-ai/sdk/v2";
 import { existsSync } from "fs";
 import { execSync } from "child_process";
 import { createConnection } from "net";
-import { logger, type LlmConfig, type ProviderConfig } from "@repositories-wiki/core";
+import { logger, type LlmConfig, type ProviderConfig } from "@repositories-wiki/common";
 import { AgentInput, AgentRunError, AgentRunResult, type PromptBody } from "./types";
 
 export class CodingAgent {

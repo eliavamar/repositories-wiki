@@ -1,4 +1,4 @@
-import { gitService, logger } from "@repositories-wiki/core";
+import { gitService, logger } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
 
 export class CloneRepositoryStep implements PipelineStep {

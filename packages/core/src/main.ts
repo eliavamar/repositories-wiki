@@ -1,4 +1,4 @@
-import { logger, WikiGeneratorConfigSchema, type WikiGeneratorConfig } from "@repositories-wiki/core";
+import { logger, WikiGeneratorConfigSchema, type WikiGeneratorConfig } from "@repositories-wiki/common";
 import {
   WikiGeneratorPipeline,
   CloneRepositoryStep,

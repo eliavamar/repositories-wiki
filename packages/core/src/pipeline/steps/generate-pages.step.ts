@@ -13,7 +13,6 @@ import { createTokenizer } from "../../utils/tokenizer";
 import { CONCURRENCY_LIMIT, MAX_RETRIES } from "../../utils/consts";
 import { retryWithSessionRecovery } from "../../utils/retry";
 
-/** Result of a single page generation attempt */
 interface PageGenerationResult {
   page: WikiPage;
   success: boolean;

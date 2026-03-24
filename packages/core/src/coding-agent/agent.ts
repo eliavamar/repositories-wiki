@@ -5,6 +5,7 @@ import { execSync } from "child_process";
 import { createConnection } from "net";
 import { logger, type LlmConfig, type ProviderConfig } from "@repositories-wiki/common";
 import { AgentInput, AgentRunError, AgentRunResult, type PromptBody } from "./types";
+import { FETCH_CODING_CLIENT_TIMEOUT } from "../utils/consts";
 
 export class CodingAgent {
   readonly serverHost = process.env.PLAYWRIGHT_SERVER_HOST ?? "127.0.0.1";
@@ -47,9 +48,12 @@ export class CodingAgent {
     // when the parent process exits (e.g. Ctrl+C, uncaught exception, process.exit).
     this.exitHandler = () => {
       if (this.abortController && !this.abortController.signal.aborted) {
-        this.abortController.abort();
+        try {
+          this.abortController.abort();
+        } catch {
+          // Ignore abort errors during exit
+        }
       }
-      this.forceKillProcessOnPort(parseInt(this.serverPort));
     };
     process.on("exit", this.exitHandler);
 
@@ -132,40 +136,36 @@ export class CodingAgent {
     const port = parseInt(this.serverPort);
     logger.info("Closing server");
 
-    // First attempt: graceful close (sends SIGTERM to child process)
+    // Remove the process exit handler first to avoid double-cleanup
+    if (this.exitHandler) {
+      process.removeListener("exit", this.exitHandler);
+      this.exitHandler = null;
+    }
+
+    // Second attempt: graceful close
     try {
       this.server.close();
     } catch (error) {
       logger.warn("Graceful server close failed", { error });
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-
-    if (await this.isPortInUse(port)) {
-      logger.debug("Port still in use after SIGTERM, aborting via AbortController");
-      if (this.abortController && !this.abortController.signal.aborted) {
-        try {
-          this.abortController.abort();
-        } catch (error) {
-          logger.warn("AbortController abort failed", { error });
-        }
-        // Wait for the abort to take effect
-        await new Promise((resolve) => setTimeout(resolve, 1000));
+    // First attempt: abort via AbortController (preferred - signals the server to stop)
+    if (this.abortController && !this.abortController.signal.aborted) {
+      try {
+        this.abortController.abort();
+        logger.debug("AbortController aborted");
+      } catch (error) {
+        logger.warn("AbortController abort failed", { error });
       }
     }
 
-    // Last resort: SIGKILL any process still occupying the port
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+
     if (await this.isPortInUse(port)) {
       logger.warn("Server port still in use after graceful shutdown, force killing process on port", { port });
       this.forceKillProcessOnPort(port);
       // Brief wait for the OS to release the port
-      await new Promise((resolve) => setTimeout(resolve, 500));
-    }
-
-    // Remove the process exit handler to avoid double-cleanup
-    if (this.exitHandler) {
-      process.removeListener("exit", this.exitHandler);
-      this.exitHandler = null;
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
 
     this.server = null;
@@ -201,9 +201,32 @@ export class CodingAgent {
 
   private forceKillProcessOnPort(port: number): void {
     try {
-      execSync(`kill -9 $(lsof -t -i :${port})`, { stdio: "ignore" });
-      logger.info("Force killed process on port", { port });
+      const myPid = process.pid;
+      // Find all PIDs using this port, excluding our own process
+      const pidsOutput = execSync(`lsof -t -i :${port}`, { encoding: "utf-8" }).trim();
+      if (!pidsOutput) return;
+
+      const pids = pidsOutput
+        .split("\n")
+        .map((p) => parseInt(p.trim(), 10))
+        .filter((pid) => !isNaN(pid) && pid !== myPid);
+
+      if (pids.length === 0) {
+        logger.debug("No child processes to kill on port (only own PID found)", { port });
+        return;
+      }
+
+      for (const pid of pids) {
+        try {
+          execSync(`kill -9 ${pid}`, { stdio: "ignore" });
+          logger.debug("Force killed process", { pid, port });
+        } catch {
+          // Process may have already exited
+        }
+      }
+      logger.info("Force killed process(es) on port", { port, pids });
     } catch {
+      // lsof may fail if no process is using the port
     }
   }
 
@@ -224,7 +247,7 @@ export class CodingAgent {
       baseUrl: this.serverUrl,
       directory: repoPath,
       throwOnError: true,
-      fetch: this.createFetchWithTimeout(5), // 5 minute timeout for long AI responses
+      fetch: this.createFetchWithTimeout(FETCH_CODING_CLIENT_TIMEOUT),
     });
     this.clients.set(repoPath, client);
     logger.debug("OpenCode client created successfully");

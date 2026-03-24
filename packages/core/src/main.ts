@@ -72,7 +72,9 @@ export async function run(): Promise<void> {
   await main(config);
 }
 
-run().catch(() => {
+run().then(() => {
+  process.exit(0);
+}).catch(() => {
   logger.error("Wiki generation failed");
   process.exit(1);
 });

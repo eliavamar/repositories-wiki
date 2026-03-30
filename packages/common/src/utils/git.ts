@@ -3,16 +3,54 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { logger } from "./logger";
-import { CloneOptions, CloneResult, ChangedFile, ChangedFilesResult } from "../types";
-
-
+import { CloneOptions, CloneResult, ChangedFile, ChangedFilesResult, ParsedGithubUrl } from "../types";
 
 export class GitService {
 
   /**
-   * Extract repository name from a git URL.
+   * Parse a GitHub URL to extract owner, repo, and detect Enterprise URLs.
+   * Supports both public GitHub (github.com) and GitHub Enterprise URLs.
    */
-  private extractRepoName(url: string): string {
+  private parseGithubUrl(urlString: string): ParsedGithubUrl {
+    try {
+      const parsedUrl = new URL(urlString);
+      const hostname = parsedUrl.hostname;
+
+      // Split the path to get owner and repo
+      // pathname usually looks like "/owner/repo" or "/owner/repo/blob/main/..."
+      const pathSegments = parsedUrl.pathname.split('/').filter(Boolean);
+
+      if (pathSegments.length < 2) {
+        throw new Error("The URL does not contain a valid owner and repository.");
+      }
+
+      const owner = pathSegments[0]!;
+      
+      // Grab the repo name and strip the '.git' extension if someone accidentally included it
+      const repo = pathSegments[1]!.replace(/\.git$/, '');
+
+      // Determine if it's an Enterprise URL
+      // Standard public GitHub domains
+      const isPublicGithub = hostname === 'github.com' || hostname === 'www.github.com';
+      
+      // If it's not public GitHub, format the standard Enterprise API URL
+      const enterpriseApiUrl = isPublicGithub 
+        ? null 
+        : `${parsedUrl.protocol}//${hostname}/api/v3`;
+
+      return {
+        owner,
+        repo,
+        enterpriseApiUrl
+      };
+
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to parse GitHub URL: ${message}`);
+    }
+  }
+
+  extractRepoName(url: string): string {
     try {
       const parsed = new URL(url);
       const pathname = parsed.pathname;
@@ -172,6 +210,71 @@ export class GitService {
     } catch {
       logger.debug(`File ${filePath} not found on branch ${branch}`);
       return null;
+    }
+  }
+
+  /**
+   * Get file contents from GitHub using the REST API (native fetch).
+   * Does not require cloning the repository.
+   * Supports both public GitHub and GitHub Enterprise URLs.
+   *
+   * For GitHub Enterprise servers with self-signed certificates, set the
+   * NODE_EXTRA_CA_CERTS environment variable to the path of the CA bundle.
+   * 
+   * @param repositoryUrl - Full repository URL (e.g., https://github.com/owner/repo or https://github.enterprise.com/owner/repo)
+   * @param filePath - Path to the file within the repository
+   * @param ref - Git ref (branch, tag, or commit SHA) to fetch from
+   * @param token - Optional GitHub token for authentication
+   */
+  async getFileFromGitHub(
+    repositoryUrl: string,
+    filePath: string,
+    ref: string,
+    token?: string
+  ): Promise<string | null> {
+    // Parse the URL to get the target details
+    const { owner, repo, enterpriseApiUrl } = this.parseGithubUrl(repositoryUrl);
+
+    // Build the GitHub REST API URL
+    const baseUrl = enterpriseApiUrl ?? "https://api.github.com";
+    let url = `${baseUrl}/repos/${owner}/${repo}/contents/${filePath}`;
+    if (ref) {
+      url += `?ref=${encodeURIComponent(ref)}`;
+    }
+
+    // Build request headers
+    const headers: Record<string, string> = {
+      "Accept": "application/vnd.github+json",
+      "User-Agent": "repositories-wiki",
+    };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    try {
+      const response = await fetch(url, { headers });
+
+      if (response.status === 404) {
+        logger.debug(`File ${filePath} not found at ref ${ref} in ${owner}/${repo}`);
+        return null;
+      }
+
+      if (!response.ok) {
+        throw new Error(`GitHub API returned ${response.status} ${response.statusText}`);
+      }
+
+      const data = (await response.json()) as Record<string, unknown>;
+
+      // Decode the Base64 content to a readable UTF-8 string
+      if (!Array.isArray(data) && data.type === "file" && typeof data.content === "string") {
+        return Buffer.from(data.content, "base64").toString("utf8");
+      } else {
+        logger.debug(`The path '${filePath}' points to a directory or submodule, not a file.`);
+        return null;
+      }
+    } catch (error) {
+      logger.debug(`Error fetching file from GitHub: ${error}`);
+      throw error;
     }
   }
 

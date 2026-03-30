@@ -53,6 +53,7 @@ export const WikiPageSchema = z.object({
   content: z.string(),
   relevantFiles: z.array(RelevantFileSchema),
   relatedPages: z.array(z.string()),
+  importance: z.enum(["low", "medium", "high"]).optional(),
   status: PageStatusSchema.optional(), 
 });
 
@@ -90,4 +91,10 @@ export interface ChangedFile {
 
 export interface ChangedFilesResult {
   files: ChangedFile[];
+}
+
+export interface ParsedGithubUrl {
+  owner: string;
+  repo: string;
+  enterpriseApiUrl: string | null;
 }

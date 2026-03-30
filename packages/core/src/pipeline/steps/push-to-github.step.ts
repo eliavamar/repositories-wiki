@@ -7,6 +7,11 @@ export class PushToGitHubStep implements PipelineStep {
   readonly name = "Push to GitHub";
 
   async execute(context: PipelineContext): Promise<PipelineContext> {
+    if (context.config.outputPath) {
+      logger.info("Skipping GitHub push — outputPath is configured");
+      return context;
+    }
+
     if (!context.repoPath) {
       throw new Error("repoPath is required");
     }
@@ -16,7 +21,10 @@ export class PushToGitHubStep implements PipelineStep {
     if (!context.commitId) {
       throw new Error("commitId is required");
     }
-
+    if (!context.config.wikiBranch) {
+      throw new Error("wikiBranch is required when pushing to GitHub");
+    }
+    
     const { repoPath, wikiStructure, commitId } = context;
     const { wikiBranch } = context.config;
 

@@ -27,12 +27,19 @@ export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 export const WikiGeneratorConfigSchema = z.object({
   repositoryUrl: z.string().url(),
   githubToken: z.string().optional(),
-  wikiBranch: z.string().default("memory"),
+  wikiBranch: z.string().optional(),
   commitId: z.string().optional(),
   providerConfig: ProviderConfigSchema.optional(),
   llm: LlmConfigSchema,
-  llmExploration: LlmConfigSchema.optional(),
-})
+  llmExploration: LlmConfigSchema,
+  outputPath: z.string().optional(),
+}).refine(
+  (data) => !(data.wikiBranch && data.outputPath),
+  { message: "Cannot specify both 'wikiBranch' and 'outputPath'. Choose one output target." }
+).refine(
+  (data) => (data.outputPath) ? true : data.githubToken,
+  { message: "'githubToken' is required when pushing to GitHub" }
+)
 
 
 // === Relevant File Schema ===
@@ -98,3 +105,5 @@ export interface ParsedGithubUrl {
   repo: string;
   enterpriseApiUrl: string | null;
 }
+
+export const DEFAULT_WIKI_BRANCH = "memory"

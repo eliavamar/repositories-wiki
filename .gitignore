@@ -4,3 +4,4 @@ tsconfig.tsbuildinfo
 package-lock.json
 .env
 .DS_Store
+.vscode/launch.json

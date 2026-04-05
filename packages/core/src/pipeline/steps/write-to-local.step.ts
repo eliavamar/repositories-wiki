@@ -7,21 +7,26 @@ export class WriteToLocalStep implements PipelineStep {
   readonly name = "Write to Local";
 
   async execute(context: PipelineContext): Promise<PipelineContext> {
-    if (!context.config.outputPath) {
-      logger.info("Skipping local write — outputPath is not configured");
-      return context;
-    }
-
     if (!context.wikiStructure) {
       throw new Error("wikiStructure is required");
     }
+    if (!context.repoPath) {
+      throw new Error("repoPath is required");
+    }
 
     const { wikiStructure } = context;
-    const outputPath = context.config.outputPath;
+    const outputDirPath = context.config.outputDirPath? context.config.outputDirPath : path.join("memory-bank", "repository-wiki");
+    const outputPath = path.join(context.repoPath, outputDirPath);
+
+    // Delete existing output directory for a clean write
+    if (fs.existsSync(outputPath)) {
+      fs.rmSync(outputPath, { recursive: true, force: true });
+      logger.info(`Deleted existing output directory: ${outputPath}`);
+    }
+    fs.mkdirSync(outputPath, { recursive: true });
 
     // Create wiki/sections directory
-    const wikiDir = path.join(outputPath, "wiki");
-    const sectionsDir = path.join(wikiDir, "sections");
+    const sectionsDir = path.join(outputPath, "sections");
     fs.mkdirSync(sectionsDir, { recursive: true });
 
     // Write wiki.json at output root
@@ -56,7 +61,7 @@ export class WriteToLocalStep implements PipelineStep {
     for (const page of wikiStructure.pages) {
       if (!pagesInSections.has(page.id)) {
         const fileName = slugify(page.title) + ".md";
-        const filePath = path.join(wikiDir, fileName);
+        const filePath = path.join(outputPath, fileName);
         fs.writeFileSync(filePath, page.content);
         logger.info(`Written: wiki/${fileName}`);
       }

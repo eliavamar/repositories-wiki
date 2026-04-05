@@ -164,6 +164,33 @@ export class GitService {
     return git.diff([fromCommit, toCommit]);
   }
 
+  /**
+   * Check if a directory is a git repository.
+   */
+  async isGitRepo(dirPath: string): Promise<boolean> {
+    const git = simpleGit(dirPath);
+    try {
+      return await git.checkIsRepo();
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Extract the repository name from a local directory path.
+   */
+  getRepoNameFromPath(dirPath: string): string {
+    return path.basename(dirPath);
+  }
+
+  /**
+   * Create and checkout a new branch from the current commit.
+   */
+  async createBranch(repoPath: string, branch: string): Promise<void> {
+    const git = simpleGit(repoPath);
+    await git.checkoutLocalBranch(branch);
+  }
+
   async cleanup(repoPath: string): Promise<void> {
     if (repoPath.startsWith(os.tmpdir())) {
       logger.debug(`Cleaning up temporary directory: ${repoPath}`);
@@ -174,6 +201,11 @@ export class GitService {
   async addAll(repoPath: string): Promise<void> {
     const git = simpleGit(repoPath);
     await git.add(".");
+  }
+
+  async addPath(repoPath: string, targetPath: string): Promise<void> {
+    const git = simpleGit(repoPath);
+    await git.add(targetPath);
   }
 
   async commit(repoPath: string, message: string): Promise<string> {

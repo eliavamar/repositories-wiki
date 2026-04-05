@@ -25,20 +25,25 @@ export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 
 
 export const WikiGeneratorConfigSchema = z.object({
-  repositoryUrl: z.string().url(),
+  repositoryUrl: z.string().url().optional(),
+  localRepoPath: z.string().optional(),
   githubToken: z.string().optional(),
   wikiBranch: z.string().optional(),
   commitId: z.string().optional(),
   providerConfig: ProviderConfigSchema.optional(),
   llm: LlmConfigSchema,
   llmExploration: LlmConfigSchema,
-  outputPath: z.string().optional(),
+  outputDirPath: z.string().optional(),
+  pushToGithub: z.boolean().optional(),
 }).refine(
-  (data) => !(data.wikiBranch && data.outputPath),
-  { message: "Cannot specify both 'wikiBranch' and 'outputPath'. Choose one output target." }
+  (data) => !!data.repositoryUrl || !!data.localRepoPath,
+  { message: "Either 'repositoryUrl' or 'localRepoPath' must be provided." }
 ).refine(
-  (data) => (data.outputPath) ? true : data.githubToken,
-  { message: "'githubToken' is required when pushing to GitHub" }
+  (data) => !(data.repositoryUrl && data.localRepoPath),
+  { message: "Cannot specify both 'repositoryUrl' and 'localRepoPath'. Choose one input source." }
+).refine(
+  (data) => !(data.repositoryUrl || data.pushToGithub) || !!data.githubToken,
+  { message: "'githubToken' is required when 'repositoryUrl' is provided or 'pushToGithub' is true." }
 )
 
 
@@ -82,8 +87,10 @@ export const WikiStructureModelSchema = z.object({
 });
 
 // === Inferred TypeScript types ===
+// === Inferred TypeScript types ===
 export type LlmConfig = z.infer<typeof LlmConfigSchema>;
 export type WikiGeneratorConfig = z.infer<typeof WikiGeneratorConfigSchema>;
+export type WikiGeneratorConfigInput = z.input<typeof WikiGeneratorConfigSchema>;
 export type AgentResult<T extends z.ZodRawShape> = z.infer<z.ZodObject<T>>;
 export type RelevantFile = z.infer<typeof RelevantFileSchema>;
 export type WikiPage = z.infer<typeof WikiPageSchema>;

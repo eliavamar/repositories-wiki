@@ -79,7 +79,7 @@ export class SapAiCoreProviderAdapter implements ProviderAdapter {
           params: {
             temperature,
             max_tokens: maxTokens,
-            max_input_tokens: maxInputTokens
+            maxInputTokens: maxInputTokens
           },
         },
       },

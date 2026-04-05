@@ -25,14 +25,26 @@ export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 
 
 export const WikiGeneratorConfigSchema = z.object({
-  repositoryUrl: z.string().url(),
+  repositoryUrl: z.string().url().optional(),
+  localRepoPath: z.string().optional(),
   githubToken: z.string().optional(),
-  wikiBranch: z.string().default("memory"),
+  wikiBranch: z.string().optional(),
   commitId: z.string().optional(),
   providerConfig: ProviderConfigSchema.optional(),
   llm: LlmConfigSchema,
-  llmExploration: LlmConfigSchema.optional(),
-})
+  llmExploration: LlmConfigSchema,
+  outputDirPath: z.string().optional(),
+  pushToGithub: z.boolean().optional(),
+}).refine(
+  (data) => !!data.repositoryUrl || !!data.localRepoPath,
+  { message: "Either 'repositoryUrl' or 'localRepoPath' must be provided." }
+).refine(
+  (data) => !(data.repositoryUrl && data.localRepoPath),
+  { message: "Cannot specify both 'repositoryUrl' and 'localRepoPath'. Choose one input source." }
+).refine(
+  (data) => !(data.repositoryUrl || data.pushToGithub) || !!data.githubToken,
+  { message: "'githubToken' is required when 'repositoryUrl' is provided or 'pushToGithub' is true." }
+)
 
 
 // === Relevant File Schema ===
@@ -75,8 +87,10 @@ export const WikiStructureModelSchema = z.object({
 });
 
 // === Inferred TypeScript types ===
+// === Inferred TypeScript types ===
 export type LlmConfig = z.infer<typeof LlmConfigSchema>;
 export type WikiGeneratorConfig = z.infer<typeof WikiGeneratorConfigSchema>;
+export type WikiGeneratorConfigInput = z.input<typeof WikiGeneratorConfigSchema>;
 export type AgentResult<T extends z.ZodRawShape> = z.infer<z.ZodObject<T>>;
 export type RelevantFile = z.infer<typeof RelevantFileSchema>;
 export type WikiPage = z.infer<typeof WikiPageSchema>;
@@ -98,3 +112,5 @@ export interface ParsedGithubUrl {
   repo: string;
   enterpriseApiUrl: string | null;
 }
+
+export const DEFAULT_WIKI_BRANCH = "memory"

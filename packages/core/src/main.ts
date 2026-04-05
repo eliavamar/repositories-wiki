@@ -6,17 +6,19 @@ import {
   StructureStep,
   GeneratePagesStep,
   PushToGitHubStep,
+  WriteToLocalStep,
   type PipelineResult,
 } from "./pipeline";
 
 export async function generateWiki(config: WikiGeneratorConfig): Promise<PipelineResult> {
   const validatedConfig = WikiGeneratorConfigSchema.parse(config);
-  
+
   const pipeline = new WikiGeneratorPipeline()
     .addStep(new CloneRepositoryStep())
     .addStep(new DetectFlowStep())
     .addStep(new StructureStep()) 
     .addStep(new GeneratePagesStep())
+    .addStep(new WriteToLocalStep())
     .addStep(new PushToGitHubStep());
 
   return pipeline.execute(validatedConfig);
@@ -56,18 +58,15 @@ export async function run(): Promise<void> {
   //   },
   // };
   const config: WikiGeneratorConfig = {
-    repositoryUrl: "https://github.wdf.sap.corp/devx-wing/vscode-service-center",
-    githubToken: process.env.GITHUB_TOKEN,
-    wikiBranch: "memory",
+    localRepoPath: "/Users/i563567/projects/devx-wing/vscode-service-center",
     llm: {
       providerID: "sap-ai-core",
       modelID: "anthropic--claude-4.6-sonnet",
     },
-    llmExploration:{
+    llmExploration: {
       providerID: "sap-ai-core",
       modelID: "anthropic--claude-4.5-haiku",
-    }
-    
+    },
   };
   await main(config);
 }

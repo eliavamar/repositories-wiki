@@ -177,7 +177,9 @@ path/to/file2.ts
 </important_files>
 
 IMPORTANT: Only include files that are visible in the file tree above. Do NOT invent paths.
-Do NOT access the codebase — base your selection entirely on the file tree.`;
+Do NOT access the codebase — base your selection entirely on the file tree.
+DO NOT RUN EXPLORE agent
+`;
 }
 
 export function generateUpdateWikiStructurePrompt(

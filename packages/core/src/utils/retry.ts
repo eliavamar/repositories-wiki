@@ -1,10 +1,13 @@
 import pRetry from "p-retry";
 import { logger } from "@repositories-wiki/common";
-import { AgentRunError, AgentRunResult } from "../coding-agent/types";
 import { MAX_RETRIES } from "./consts";
 
-export interface RetryWithSessionRecoveryOptions<T> {
-  run: (prompt: string, sessionId?: string) => Promise<AgentRunResult>;
+export interface AgentGenerateResult {
+  answer: string;
+}
+
+export interface RetryWithRecoveryOptions<T> {
+  run: (prompt: string) => Promise<AgentGenerateResult>;
   originalPrompt: string;
   timeoutRetryPrompt: string;
   parsingRetryPrompt: string;
@@ -15,23 +18,24 @@ export interface RetryWithSessionRecoveryOptions<T> {
 
 export interface RetryResult<T> {
   parsed: T;
-  sessionId: string;
 }
 
 /**
- * Retry an agent call with smart session recovery.
+ * Retry an agent call with recovery logic.
  *
- * - **Timeout errors**:
- *   Retry using the *same* session with a corrective prompt asking for a shorter response.
+ * - **Timeout errors** (AbortError or "aborted" in message):
+ *   Retry with a corrective prompt asking for a shorter response.
  *
  * - **Parsing errors**:
- *   Retry using the *same* session with a corrective prompt asking for valid output format.
+ *   Retry with a corrective prompt asking for valid output format.
  *
  * - **General runtime errors**:
- *   Retry with a *fresh* session and the original prompt.
+ *   Retry with the original prompt.
+ *
+ * Since coding-agent-v2 has no session concept, every retry is a fresh call.
  */
-export async function retryWithSessionRecovery<T>(
-  options: RetryWithSessionRecoveryOptions<T>,
+export async function retryWithRecovery<T>(
+  options: RetryWithRecoveryOptions<T>,
 ): Promise<RetryResult<T>> {
   const {
     run,
@@ -43,48 +47,42 @@ export async function retryWithSessionRecovery<T>(
     maxRetries = MAX_RETRIES,
   } = options;
 
-  let lastSessionId: string | undefined;
   let lastErrorType: "timeout" | "parsing" | undefined;
 
   return pRetry(
     async () => {
-      // Decide whether to continue an existing session or start fresh
-      const shouldContinueSession = lastSessionId && lastErrorType;
-      const prompt = shouldContinueSession
-        ? lastErrorType === "timeout"
-          ? timeoutRetryPrompt
-          : parsingRetryPrompt
-        : originalPrompt;
-      const sessionId = shouldContinueSession ? lastSessionId : undefined;
+      // Decide which prompt to use based on the previous error
+      const prompt = lastErrorType === "timeout"
+        ? timeoutRetryPrompt
+        : lastErrorType === "parsing"
+          ? parsingRetryPrompt
+          : originalPrompt;
 
-      if (shouldContinueSession) {
-        logger.info(`Retrying ${label} with same session (${lastErrorType} recovery)...`);
+      if (lastErrorType) {
+        logger.info(`Retrying ${label} (${lastErrorType} recovery)...`);
       }
 
       // Reset for this attempt
-      lastSessionId = undefined;
       lastErrorType = undefined;
 
-      let runResult: AgentRunResult;
+      let result: AgentGenerateResult;
       try {
-        runResult = await run(prompt, sessionId);
+        result = await run(prompt);
       } catch (error) {
-        if (error instanceof AgentRunError) {
-          if (error.isTimeout) {
-            lastSessionId = error.sessionId;
-            lastErrorType = "timeout";
-            throw new Error(`Agent timed out (${label}): ${error.message}`);
-          }
-          throw new Error(`Agent runtime error (${label}): ${error.message}`);
+        if (
+          error instanceof Error &&
+          (error.name === "AbortError" || error.message?.includes("aborted"))
+        ) {
+          lastErrorType = "timeout";
+          throw new Error(`Agent timed out (${label}): ${error.message}`);
         }
         throw error;
       }
 
       try {
-        const parsed = parse(runResult.result);
-        return { parsed, sessionId: runResult.sessionId };
+        const parsed = parse(result.answer);
+        return { parsed };
       } catch (parseError) {
-        lastSessionId = runResult.sessionId;
         lastErrorType = "parsing";
         const msg = parseError instanceof Error ? parseError.message : String(parseError);
         throw new Error(`Parsing failed (${label}): ${msg}`);
@@ -102,3 +100,4 @@ export async function retryWithSessionRecovery<T>(
     },
   );
 }
+

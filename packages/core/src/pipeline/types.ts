@@ -1,5 +1,5 @@
 import type { WikiGeneratorConfig, WikiStructureModel, ChangedFilesResult } from "@repositories-wiki/common";
-import type { CodingAgent } from "../coding-agent/agent";
+import type { Agent } from "../coding-agent-v2";
 
 /**
  * Shared context passed between pipeline steps.
@@ -28,11 +28,8 @@ export interface PipelineContext {
   // Wiki generation (set by GenerateStructureStep & GeneratePagesStep)
   wikiStructure?: WikiStructureModel;
 
-  // Session tracking (set by StructureStep for page generation inheritance)
-  structureSessionId?: string;
-
   // Agent (managed by pipeline)
-  agent?: CodingAgent;
+  agent?: Agent;
 }
 
 /**

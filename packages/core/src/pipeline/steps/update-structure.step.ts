@@ -47,14 +47,13 @@ export class UpdateStructureStep implements PipelineStep {
       context.changedFilesDirPath
     );
 
-    const { result, sessionId } = await context.agent.run({
-      repoPath: context.repoPath,
+    const { answer } = await context.agent.generate({
+      model: context.config.llm.modelID,
       prompt,
-      title: "Update Wiki Structure",
-      llmConfig: context.config.llm,
+      projectPath: context.repoPath,
     });
 
-    const wikiStructure = parseUpdateWikiStructure(result, context.previousWikiStructure);
+    const wikiStructure = parseUpdateWikiStructure(answer, context.previousWikiStructure);
     logger.info(`Updated structure with ${wikiStructure.pages.length} pages`);
 
     // Log page status breakdown
@@ -72,7 +71,6 @@ export class UpdateStructureStep implements PipelineStep {
     return {
       ...context,
       wikiStructure,
-      structureSessionId: sessionId,
       changedFilesDirPath: undefined,
     };
   }

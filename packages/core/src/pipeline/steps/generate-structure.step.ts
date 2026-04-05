@@ -12,7 +12,7 @@ import {
 import { parseWikiStructure, parseInferredFiles } from "../../parsers";
 import { walkRepo, formatFileTree, selectCoreFiles, loadInferredFiles } from "../../utils/files";
 import { createTokenizer } from "../../utils/tokenizer";
-import { retryWithSessionRecovery } from "../../utils/retry";
+import { retryWithRecovery } from "../../utils/retry";
 
 export class GenerateStructureStep implements PipelineStep {
   readonly name = "Generate Structure";
@@ -42,7 +42,7 @@ export class GenerateStructureStep implements PipelineStep {
       tokenizer,
     );
 
-    const { wikiStructure, sessionId } = await this.generateWikiStructure(
+    const wikiStructure = await this.generateWikiStructure(
       context.agent,
       context.repoPath,
       context.repoName,
@@ -56,14 +56,13 @@ export class GenerateStructureStep implements PipelineStep {
     return {
       ...context,
       wikiStructure,
-      structureSessionId: sessionId,
     };
   }
 
   /**
    * Generate wiki structure using the agent with retry logic:
-   * - Timeout/parsing errors: retry with same session + corrective prompt
-   * - General runtime errors: retry with a fresh session
+   * - Timeout/parsing errors: retry with corrective prompt
+   * - General runtime errors: retry with the original prompt
    */
   private async generateWikiStructure(
     agent: NonNullable<PipelineContext['agent']>,
@@ -73,12 +72,12 @@ export class GenerateStructureStep implements PipelineStep {
     llmConfig: PipelineContext['config']['llm'],
     fileTree: string,
     enrichedFiles: Map<string, string>,
-  ): Promise<{ wikiStructure: WikiStructureModel; sessionId: string }> {
+  ): Promise<WikiStructureModel> {
     const originalPrompt = generateWikiStructurePrompt(repoName, commitId, fileTree, enrichedFiles);
 
-    const { parsed: wikiStructure, sessionId } = await retryWithSessionRecovery({
-      run: (prompt, sessionId) =>
-        agent.run({ repoPath, prompt, title: "Generate Wiki Structure", llmConfig, sessionId }),
+    const { parsed: wikiStructure } = await retryWithRecovery({
+      run: (prompt) =>
+        agent.generate({ model: llmConfig.modelID, prompt, projectPath: repoPath }),
       originalPrompt,
       timeoutRetryPrompt: structureTimeoutRetryPrompt(),
       parsingRetryPrompt: structureParsingRetryPrompt(),
@@ -86,12 +85,12 @@ export class GenerateStructureStep implements PipelineStep {
       label: "structure generation",
     });
 
-    return { wikiStructure, sessionId };
+    return wikiStructure;
   }
 
   /**
    * Make a fast, cheap LLM call to infer important files from the file tree.
-   * Includes retry logic for timeout errors with session continuation.
+   * Includes retry logic for timeout and parsing errors.
    */
   private async inferAndLoadImportantFiles(
     agent: NonNullable<PipelineContext['agent']>,
@@ -106,14 +105,14 @@ export class GenerateStructureStep implements PipelineStep {
       const inferPrompt = inferImportantFilesPrompt(fileTree);
       logger.info("Inferring important files from file tree (fast LLM call)...");
 
-      const { parsed: inferredPaths } = await retryWithSessionRecovery({
-        run: (prompt, sessionId) =>
-          agent.run({
-            repoPath,
+      const modelId = (llmExplorationConfig || llmConfig).modelID;
+
+      const { parsed: inferredPaths } = await retryWithRecovery({
+        run: (prompt) =>
+          agent.generate({
+            model: modelId,
             prompt,
-            title: "Infer Important Files",
-            llmConfig: llmExplorationConfig || llmConfig,
-            sessionId,
+            projectPath: repoPath,
           }),
         originalPrompt: inferPrompt,
         timeoutRetryPrompt: inferFilesTimeoutRetryPrompt(),

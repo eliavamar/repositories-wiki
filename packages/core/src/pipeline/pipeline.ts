@@ -15,7 +15,7 @@ export class WikiGeneratorPipeline {
     let context: PipelineContext = { config };
 
     logger.info("Starting wiki generation pipeline");
-    logger.info(`Repository: ${config.repositoryUrl}`);
+    logger.info(`Repository: ${config.repositoryUrl || config.localRepoPath}`);
 
     context.agent = new CodingAgent();
     await context.agent.startServer(config.providerConfig, config.llmExploration);

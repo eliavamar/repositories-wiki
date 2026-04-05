@@ -5,3 +5,4 @@ export { UpdateStructureStep } from "./update-structure.step";
 export { StructureStep } from "./structure.step";
 export { GeneratePagesStep } from "./generate-pages.step";
 export { PushToGitHubStep } from "./push-to-github.step";
+export { WriteToLocalStep } from "./write-to-local.step";

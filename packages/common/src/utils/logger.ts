@@ -17,7 +17,7 @@ const COLORS: Record<LogLevel, string> = {
 const RESET = "\x1b[0m";
 const BOLD = "\x1b[1m";
 
-class Logger {
+export class Logger {
   private level: LogLevel = "info";
 
   setLevel(level: LogLevel): void {

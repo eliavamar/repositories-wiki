@@ -2,7 +2,6 @@ import { FilesystemBackend, createDeepAgent as createLibDeepAgent } from "deepag
 import type { BackendProtocol, WriteResult, EditResult, DeepAgent } from "deepagents";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
-
 class ReadOnlyFilesystemBackend extends FilesystemBackend implements BackendProtocol {
   constructor(rootDir: string) {
     super({ rootDir, virtualMode: true });
@@ -26,33 +25,14 @@ class ReadOnlyFilesystemBackend extends FilesystemBackend implements BackendProt
   }
 }
 
-/**
- * Cache key for deep agent instances: `${projectPath}::${modelId}`
- */
-function buildCacheKey(projectPath: string, modelId: string): string {
-  return `${projectPath}::${modelId}`;
-}
 
-/**
- * Create a deep agent instance with read-only filesystem access.
- *
- * The agent can use ls, read_file, glob, grep on the project directory
- * but cannot write or edit files.
- *
- * @param chatModel - An initialized BaseChatModel instance
- * @param projectPath - Absolute path to the project directory
- * @returns A compiled deep agent ready for invocation
- */
-function buildDeepAgent(
+export function buildDeepAgent(
   chatModel: BaseChatModel,
   projectPath: string,
 ): DeepAgent {
   const backend = new ReadOnlyFilesystemBackend(projectPath);
-
   return createLibDeepAgent({
     model: chatModel,
     backend,
   });
 }
-
-export { ReadOnlyFilesystemBackend, buildDeepAgent, buildCacheKey };

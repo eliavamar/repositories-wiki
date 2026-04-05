@@ -1,55 +1,30 @@
-import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
-import type { DeepAgent } from "deepagents";
 import type {
   GenerateOptions,
   GenerateResult,
-  ChatModelMap,
 } from "../types.js";
-import { buildDeepAgent, buildCacheKey } from "./deep-agent.js";
+import type { ModelRegistry } from "./model-registry.js";
+import type { DeepAgentPool } from "./deep-agent-pool.js";
+
 
 export class Agent {
-  private readonly chatModels: ChatModelMap;
-  private readonly deepAgentCache: Map<string, DeepAgent> = new Map();
+  private readonly registry: ModelRegistry;
+  private readonly deepAgentPool: DeepAgentPool;
 
-  constructor(chatModels: ChatModelMap) {
-    this.chatModels = chatModels;
+  constructor(registry: ModelRegistry, deepAgentPool: DeepAgentPool) {
+    this.registry = registry;
+    this.deepAgentPool = deepAgentPool;
   }
-
-  getModel(modelId: string): BaseChatModel {
-    const model = this.chatModels.get(modelId);
-    if (!model) {
-      const available = [...this.chatModels.keys()].join(", ");
-      throw new Error(
-        `Model "${modelId}" is not initialized. Available models: ${available}`
-      );
-    }
-    return model;
-  }
-
 
   getAvailableModels(): string[] {
-    return [...this.chatModels.keys()];
+    return this.registry.list();
   }
 
-  /**
-   * Get or create a cached deep agent for the given project path and model.
-   */
-  private getOrCreateDeepAgent(modelId: string, projectPath: string): DeepAgent {
-    const cacheKey = buildCacheKey(projectPath, modelId);
-    let agent = this.deepAgentCache.get(cacheKey);
-    if (!agent) {
-      const chatModel = this.getModel(modelId);
-      agent = buildDeepAgent(chatModel, projectPath);
-      this.deepAgentCache.set(cacheKey, agent);
-    }
-    return agent;
-  }
 
-  async generate(_options: GenerateOptions): Promise<GenerateResult> {
-    const { prompt, model, projectPath } = _options;
+  async generate(options: GenerateOptions): Promise<GenerateResult> {
+    const { prompt, model, projectPath } = options;
 
     if (projectPath) {
-      const deepAgent = this.getOrCreateDeepAgent(model, projectPath);
+      const deepAgent = this.deepAgentPool.getOrCreate(model, projectPath);
       const result = await deepAgent.invoke({
         messages: [{ role: "user", content: prompt }],
       });
@@ -63,7 +38,7 @@ export class Agent {
       return { answer };
     }
 
-    const llm = this.getModel(model);
+    const llm = this.registry.get(model);
     const res = await llm.invoke(prompt);
     const answer = res.toFormattedString();
     return { answer };

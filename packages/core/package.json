@@ -16,6 +16,7 @@
     "@opencode-ai/sdk": "^1.3.0",
     "@repositories-wiki/common": "1.0.0",
     "@sap-ai-sdk/langchain": "^2.9.0",
+    "deepagents": "^1.8.8",
     "langchain": "^1.2.39",
     "opencode-ai": "^1.3.0",
     "p-limit": "^7.3.0",

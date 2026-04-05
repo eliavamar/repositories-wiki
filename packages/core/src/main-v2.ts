@@ -4,7 +4,7 @@ export async function run(): Promise<void> {
   const providerID = "sap-ai-core";
   const models = ["anthropic--claude-4.6-sonnet"];
   const agent = await createAgent(models, providerID);
-  const res = await agent.generate({model: "anthropic--claude-4.6-sonnet", prompt: "hi"});
+  const res = await agent.generate({model: "anthropic--claude-4.6-sonnet", prompt: "create test.txt file that say 'hello world'", projectPath: "/Users/i563567/projects/devx-wing/vscode-service-center"});
   console.log("done")
 }
 

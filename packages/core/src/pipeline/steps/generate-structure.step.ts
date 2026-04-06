@@ -1,15 +1,13 @@
 import { logger } from "@repositories-wiki/common";
-import type { WikiStructureModel } from "@repositories-wiki/common";
+import type { WikiStructureModel, WikiStructureOutput, InferredFilesOutput } from "@repositories-wiki/common";
+import { WikiStructureOutputSchema, InferredFilesOutputSchema } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
 import {
   generateWikiStructurePrompt,
   inferImportantFilesPrompt,
   structureTimeoutRetryPrompt,
-  structureParsingRetryPrompt,
   inferFilesTimeoutRetryPrompt,
-  inferFilesParsingRetryPrompt,
 } from "../prompts";
-import { parseWikiStructure, parseInferredFiles } from "../../parsers";
 import { walkRepo, formatFileTree, selectCoreFiles, loadInferredFiles } from "../../utils/files";
 import { createTokenizer } from "../../utils/tokenizer";
 import { retryWithRecovery } from "../../utils/retry";
@@ -60,9 +58,8 @@ export class GenerateStructureStep implements PipelineStep {
   }
 
   /**
-   * Generate wiki structure using the agent with retry logic:
-   * - Timeout/parsing errors: retry with corrective prompt
-   * - General runtime errors: retry with the original prompt
+   * Generate wiki structure using the agent with structured output.
+   * Retry logic handles timeout errors; the framework handles schema validation.
    */
   private async generateWikiStructure(
     agent: NonNullable<PipelineContext['agent']>,
@@ -75,22 +72,26 @@ export class GenerateStructureStep implements PipelineStep {
   ): Promise<WikiStructureModel> {
     const originalPrompt = generateWikiStructurePrompt(repoName, commitId, fileTree, enrichedFiles);
 
-    const { parsed: wikiStructure } = await retryWithRecovery({
+    const { parsed: structureOutput } = await retryWithRecovery<WikiStructureOutput>({
       run: (prompt) =>
-        agent.generate({ model: llmConfig.modelID, prompt, projectPath: repoPath }),
+        agent.generate<WikiStructureOutput>({
+          model: llmConfig.modelID,
+          prompt,
+          projectPath: repoPath,
+          structuredOutput: WikiStructureOutputSchema,
+        }),
       originalPrompt,
       timeoutRetryPrompt: structureTimeoutRetryPrompt(),
-      parsingRetryPrompt: structureParsingRetryPrompt(),
-      parse: parseWikiStructure,
       label: "structure generation",
     });
 
-    return wikiStructure;
+    // Convert structured output to WikiStructureModel (add empty content to pages, compute rootSections)
+    return this.toWikiStructureModel(structureOutput);
   }
 
   /**
    * Make a fast, cheap LLM call to infer important files from the file tree.
-   * Includes retry logic for timeout and parsing errors.
+   * Uses structured output; retry logic handles timeout errors.
    */
   private async inferAndLoadImportantFiles(
     agent: NonNullable<PipelineContext['agent']>,
@@ -107,19 +108,20 @@ export class GenerateStructureStep implements PipelineStep {
 
       const modelId = (llmExplorationConfig || llmConfig).modelID;
 
-      const { parsed: inferredPaths } = await retryWithRecovery({
+      const { parsed: inferredResult } = await retryWithRecovery<InferredFilesOutput>({
         run: (prompt) =>
-          agent.generate({
+          agent.generate<InferredFilesOutput>({
             model: modelId,
             prompt,
             projectPath: repoPath,
+            structuredOutput: InferredFilesOutputSchema,
           }),
         originalPrompt: inferPrompt,
         timeoutRetryPrompt: inferFilesTimeoutRetryPrompt(),
-        parsingRetryPrompt: inferFilesParsingRetryPrompt(),
-        parse: parseInferredFiles,
         label: "file inference",
       });
+
+      const inferredPaths = inferredResult.files;
 
       if (inferredPaths.length === 0) {
         logger.warn("No files inferred, using tier-selected files only");
@@ -133,5 +135,31 @@ export class GenerateStructureStep implements PipelineStep {
       logger.warn(`Failed to infer important files, using tier-selected files only: ${errorMessage}`);
       return coreFiles;
     }
+  }
+
+  /**
+   * Convert the structured output (which has no content on pages) to a full WikiStructureModel.
+   */
+  private toWikiStructureModel(output: WikiStructureOutput): WikiStructureModel {
+    const sections = output.sections ?? [];
+
+    // All top-level sections are root sections (structured output is flat)
+    const rootSections = sections.map((s: { id: string }) => s.id);
+
+    return {
+      commitId: output.commitId,
+      title: output.title,
+      description: output.description,
+      pages: output.pages.map((page: WikiStructureOutput["pages"][number]) => ({
+        id: page.id,
+        title: page.title,
+        description: page.description,
+        content: "",
+        relevantFiles: page.relevantFiles,
+        relatedPages: page.relatedPages,
+      })),
+      sections: sections.length > 0 ? sections : undefined,
+      rootSections: rootSections.length > 0 ? rootSections : undefined,
+    };
   }
 }

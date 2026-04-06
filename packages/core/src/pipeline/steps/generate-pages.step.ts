@@ -1,13 +1,12 @@
 import pLimit from "p-limit";
 import { logger } from "@repositories-wiki/common";
-import type { WikiStructureModel, WikiPage } from "@repositories-wiki/common";
+import type { WikiStructureModel, WikiPage, PageContentOutput } from "@repositories-wiki/common";
+import { PageContentOutputSchema } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
 import {
   generatePageContentPrompt,
   pageContentTimeoutRetryPrompt,
-  pageContentParsingRetryPrompt,
 } from "../prompts";
-import { parsePageContent } from "../../parsers";
 import { calculateFileImportance, getPreloadedFilesForPage, wikiFilesToFileContentsMap } from "../../utils/files";
 import { createTokenizer } from "../../utils/tokenizer";
 import { CONCURRENCY_LIMIT, MAX_RETRIES } from "../../utils/consts";
@@ -79,17 +78,16 @@ export class GeneratePagesStep implements PipelineStep {
 
           const modelId = (context.config.llmExploration || context.config.llm).modelID;
 
-          const { parsed: result } = await retryWithRecovery({
+          const { parsed: result } = await retryWithRecovery<PageContentOutput>({
             run: (prompt) =>
-              agent.generate({
+              agent.generate<PageContentOutput>({
                 model: modelId,
                 prompt,
                 projectPath: repoPath,
+                structuredOutput: PageContentOutputSchema,
               }),
             originalPrompt,
             timeoutRetryPrompt: pageContentTimeoutRetryPrompt(page.title),
-            parsingRetryPrompt: pageContentParsingRetryPrompt(page.title),
-            parse: parsePageContent,
             label: `page "${page.title}"`,
           });
 

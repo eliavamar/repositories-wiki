@@ -6,7 +6,14 @@ export interface AgentGenerateResult {
   answer: string;
 }
 
-export interface RetryWithRecoveryOptions<T> {
+export interface RetryResult<T> {
+  parsed: T;
+}
+
+/**
+ * Options for retrying an agent call that returns text and needs manual parsing.
+ */
+export interface RetryWithTextParsingOptions<T> {
   run: (prompt: string) => Promise<AgentGenerateResult>;
   originalPrompt: string;
   timeoutRetryPrompt: string;
@@ -16,21 +23,47 @@ export interface RetryWithRecoveryOptions<T> {
   maxRetries?: number;
 }
 
-export interface RetryResult<T> {
-  parsed: T;
+/**
+ * Options for retrying an agent call that uses structured output.
+ * The agent returns already-parsed data via `structuredResponse`.
+ * Only timeout retries are needed — the framework handles validation/parsing.
+ */
+export interface RetryWithStructuredOutputOptions<T> {
+  run: (prompt: string) => Promise<{ structuredResponse?: T }>;
+  originalPrompt: string;
+  timeoutRetryPrompt: string;
+  label: string;
+  maxRetries?: number;
+}
+
+/**
+ * Union type for backward compatibility. When `parse` is provided, it uses text parsing mode.
+ * When `parse` is omitted, it uses structured output mode.
+ */
+export type RetryWithRecoveryOptions<T> =
+  | RetryWithTextParsingOptions<T>
+  | RetryWithStructuredOutputOptions<T>;
+
+function isTextParsingOptions<T>(
+  options: RetryWithRecoveryOptions<T>,
+): options is RetryWithTextParsingOptions<T> {
+  return "parse" in options && typeof options.parse === "function";
 }
 
 /**
  * Retry an agent call with recovery logic.
  *
- * - **Timeout errors** (AbortError or "aborted" in message):
- *   Retry with a corrective prompt asking for a shorter response.
+ * Supports two modes:
  *
- * - **Parsing errors**:
- *   Retry with a corrective prompt asking for valid output format.
+ * **Text parsing mode** (when `parse` is provided):
+ * - Timeout errors: retry with `timeoutRetryPrompt`
+ * - Parsing errors: retry with `parsingRetryPrompt`
+ * - General errors: retry with original prompt
  *
- * - **General runtime errors**:
- *   Retry with the original prompt.
+ * **Structured output mode** (when `parse` is omitted):
+ * - Timeout errors: retry with `timeoutRetryPrompt`
+ * - General errors: retry with original prompt
+ * - No parsing step — the agent returns structured data directly
  *
  * Since coding-agent-v2 has no session concept, every retry is a fresh call.
  */
@@ -41,22 +74,24 @@ export async function retryWithRecovery<T>(
     run,
     originalPrompt,
     timeoutRetryPrompt,
-    parsingRetryPrompt,
-    parse,
     label,
     maxRetries = MAX_RETRIES,
   } = options;
 
+  const useTextParsing = isTextParsingOptions(options);
   let lastErrorType: "timeout" | "parsing" | undefined;
 
   return pRetry(
     async () => {
       // Decide which prompt to use based on the previous error
-      const prompt = lastErrorType === "timeout"
-        ? timeoutRetryPrompt
-        : lastErrorType === "parsing"
-          ? parsingRetryPrompt
-          : originalPrompt;
+      let prompt: string;
+      if (lastErrorType === "timeout") {
+        prompt = timeoutRetryPrompt;
+      } else if (lastErrorType === "parsing" && useTextParsing) {
+        prompt = options.parsingRetryPrompt;
+      } else {
+        prompt = originalPrompt;
+      }
 
       if (lastErrorType) {
         logger.info(`Retrying ${label} (${lastErrorType} recovery)...`);
@@ -65,7 +100,7 @@ export async function retryWithRecovery<T>(
       // Reset for this attempt
       lastErrorType = undefined;
 
-      let result: AgentGenerateResult;
+      let result: Awaited<ReturnType<typeof run>>;
       try {
         result = await run(prompt);
       } catch (error) {
@@ -79,8 +114,19 @@ export async function retryWithRecovery<T>(
         throw error;
       }
 
+      // Structured output mode: return the structured response directly
+      if (!useTextParsing) {
+        const structured = (result as { structuredResponse?: T }).structuredResponse;
+        if (structured === undefined || structured === null) {
+          throw new Error(`No structured response returned (${label})`);
+        }
+        return { parsed: structured };
+      }
+
+      // Text parsing mode: parse the text answer
       try {
-        const parsed = parse(result.answer);
+        const textResult = result as AgentGenerateResult;
+        const parsed = options.parse(textResult.answer);
         return { parsed };
       } catch (parseError) {
         lastErrorType = "parsing";
@@ -100,4 +146,3 @@ export async function retryWithRecovery<T>(
     },
   );
 }
-

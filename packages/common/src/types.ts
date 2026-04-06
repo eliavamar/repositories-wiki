@@ -86,8 +86,76 @@ export const WikiStructureModelSchema = z.object({
   rootSections: z.array(z.string()).optional(),
 });
 
-// === Inferred TypeScript types ===
-// === Inferred TypeScript types ===
+// ─── Structured Output Schemas (for LLM responseFormat) ─────────────────────
+
+/**
+ * Schema for wiki structure generation output (new flow).
+ * Pages have no content yet — content is generated in a later step.
+ */
+export const WikiStructureOutputSchema = z.object({
+  title: z.string().describe("Overall title for the wiki"),
+  description: z.string().describe("Brief description of the repository"),
+  commitId: z.string().describe("The commit ID"),
+  pages: z.array(z.object({
+    id: z.string().describe("Unique page identifier, e.g. page-1"),
+    title: z.string().describe("Page title"),
+    description: z.string().describe("What this page covers"),
+    relevantFiles: z.array(z.object({
+      filePath: z.string().describe("Path to a relevant source file from the repo"),
+    })).describe("Relevant source files for this page"),
+    relatedPages: z.array(z.string()).describe("IDs of related pages"),
+  })).describe("All wiki pages"),
+  sections: z.array(z.object({
+    id: z.string().describe("Unique section identifier, e.g. section-1"),
+    title: z.string().describe("Section title"),
+    pages: z.array(z.string()).describe("Page IDs belonging to this section"),
+  })).optional().describe("Logical groupings of pages into sections"),
+});
+
+/**
+ * Schema for wiki structure update output (update flow).
+ * Pages may have a status indicating whether they need content regeneration.
+ */
+export const WikiStructureUpdateOutputSchema = z.object({
+  title: z.string().describe("Overall title for the wiki"),
+  description: z.string().describe("Brief description of the repository"),
+  commitId: z.string().describe("The new commit ID"),
+  pages: z.array(z.object({
+    id: z.string().describe("Unique page identifier"),
+    title: z.string().describe("Page title"),
+    description: z.string().describe("What this page covers"),
+    relevantFiles: z.array(z.object({
+      filePath: z.string().describe("Path to a relevant source file from the repo"),
+    })).describe("Relevant source files for this page"),
+    relatedPages: z.array(z.string()).describe("IDs of related pages"),
+    status: z.enum(["NEW", "UPDATE"]).optional().describe("NEW for brand new pages, UPDATE for pages needing content regeneration, omit for unchanged pages"),
+  })).describe("All wiki pages (omit pages that should be deleted)"),
+  sections: z.array(z.object({
+    id: z.string().describe("Unique section identifier"),
+    title: z.string().describe("Section title"),
+    pages: z.array(z.string()).describe("Page IDs belonging to this section"),
+  })).optional().describe("Logical groupings of pages into sections"),
+});
+
+/**
+ * Schema for the inferred important files output.
+ */
+export const InferredFilesOutputSchema = z.object({
+  files: z.array(z.string().describe("File path from the repository file tree")),
+});
+
+/**
+ * Schema for page content generation output.
+ */
+export const PageContentOutputSchema = z.object({
+  content: z.string().describe("The full wiki page content in Markdown format, starting with an H1 heading"),
+  relevantFiles: z.array(z.object({
+    filePath: z.string().describe("Path to a source file used to generate the content"),
+  })).describe("Source files referenced in the content"),
+});
+
+// ─── Inferred TypeScript types ──────────────────────────────────────────────
+
 export type LlmConfig = z.infer<typeof LlmConfigSchema>;
 export type WikiGeneratorConfig = z.infer<typeof WikiGeneratorConfigSchema>;
 export type WikiGeneratorConfigInput = z.input<typeof WikiGeneratorConfigSchema>;
@@ -96,6 +164,11 @@ export type RelevantFile = z.infer<typeof RelevantFileSchema>;
 export type WikiPage = z.infer<typeof WikiPageSchema>;
 export type WikiSection = z.infer<typeof WikiSectionSchema>;
 export type WikiStructureModel = z.infer<typeof WikiStructureModelSchema>;
+
+export type WikiStructureOutput = z.infer<typeof WikiStructureOutputSchema>;
+export type WikiStructureUpdateOutput = z.infer<typeof WikiStructureUpdateOutputSchema>;
+export type InferredFilesOutput = z.infer<typeof InferredFilesOutputSchema>;
+export type PageContentOutput = z.infer<typeof PageContentOutputSchema>;
 
 export interface ChangedFile {
   path: string;

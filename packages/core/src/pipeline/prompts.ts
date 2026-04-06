@@ -1,76 +1,6 @@
 import type { WikiPage, WikiStructureModel, ChangedFilesResult } from "@repositories-wiki/common";
 import { FileContentsMap } from "../utils/types";
 
-function getWikiStructureSchema(commitId?: string){
-  if(commitId){
-    return `
-<wiki_structure>
-  <title>[Overall title for the wiki]</title>
-  <description>[Brief description of the repository]</description>
-  <commit_id>${commitId}</commit_id>
-  <sections>
-    <section id="section-1">
-      <title>[Section title]</title>
-      <pages>
-        <page_ref>page-1</page_ref>
-        <page_ref>page-2</page_ref>
-      </pages>
-
-    </section>
-    <!-- More sections as needed -->
-  </sections>
-  <pages>
-    <page id="page-1">
-      <title>[Page title]</title>
-      <description>[What this page covers, and whether a diagram would help]</description>
-      <relevant_files>
-        <file_path>[Path to a relevant file from the repo]</file_path>
-        <!-- More file paths as needed -->
-      </relevant_files>
-      <related_pages>
-        <related>page-2</related>
-      </related_pages>
-      <parent_section>section-1</parent_section>
-    </page>
-    <!-- More pages as needed -->
-  </pages>
-</wiki_structure>
-  `
-  }
-    return `
-<wiki_structure>
-  <title>[Overall title for the wiki]</title>
-  <description>[Brief description of the repository]</description>
-  <commit_id>[The commit id]</commit_id>
-  <sections>
-    <section id="section-1">
-      <title>[Section title]</title>
-      <pages>
-        <page_ref>page-1</page_ref>
-        <page_ref>page-2</page_ref>
-      </pages>
-
-    </section>
-    <!-- More sections as needed -->
-  </sections>
-  <pages>
-    <page id="page-1">
-      <title>[Page title]</title>
-      <description>[What this page covers, and whether a diagram would help]</description>
-      <relevant_files>
-        <file_path>[Path to a relevant file from the repo]</file_path>
-        <!-- More file paths as needed -->
-      </relevant_files>
-      <related_pages>
-        <related>page-2</related>
-      </related_pages>
-      <parent_section>section-1</parent_section>
-    </page>
-    <!-- More pages as needed -->
-  </pages>
-</wiki_structure>
-  ` 
-}
 export function generateWikiStructurePrompt(
   repoName: string,
   commitId: string,
@@ -122,19 +52,16 @@ Avoid creating pages that would be redundant, near-empty, or that repeat each ot
 
 **Diagrams:** Flag pages that would benefit from a visual by noting it in their description. Good candidates include: architecture overviews, data flows, component relationships, process workflows, state machines, and class hierarchies.
 
-## Output Format
-  ${getWikiStructureSchema(commitId)}
+## Output Requirements
 
-Return your analysis in the following XML format:
+The commit ID for this wiki structure is: ${commitId}
 
 IMPORTANT:
 1. Section and page titles must be derived from the actual repository — do not copy generic template names
 2. Page count must be proportional to the repository's size and complexity, not a fixed number
-3. Every page's relevant_files must reference real paths visible in the file tree above
+3. Every page's relevantFiles must reference real paths visible in the file tree above
 4. Each page should cover a distinct aspect — no overlap, no filler pages
-5. Each page Should have at least 5 relevant_files to ensure comprehensive documentation coverage.
-6. The output MUST be in the XML format specified above — return the complete <wiki_structure> element with all required nested elements
-7. Do NOT include any other text, explanations, or commentary outside the XML structure — return ONLY the <wiki_structure> XML block
+5. Each page should have at least 5 relevant files to ensure comprehensive documentation coverage
 `;
 }
 
@@ -166,15 +93,6 @@ From the file tree above, select up to ${maxFiles} files that are most important
 - Lock files (package-lock.json, yarn.lock)
 - Asset files (images, fonts, CSS-only files)
 - Documentation files (*.md) except README.md
-
-## Output Format
-
-Return ONLY a list of file paths, one per line, wrapped in XML tags. No explanations, no other text.
-
-<important_files>
-path/to/file1.ts
-path/to/file2.ts
-</important_files>
 
 IMPORTANT: Only include files that are visible in the file tree above. Do NOT invent paths.
 Do NOT access the codebase — base your selection entirely on the file tree.
@@ -252,7 +170,7 @@ ${diffDirInfo}
      - Existing files that this page documents have changed in ways that affect the documentation
    - **NEW**: New functionality was introduced that doesn't fit in any existing page - create a new page for it
    - **REMOVE**: Based on the changes, this page is no longer relevant (simply omit it from the output)
-   - **UNCHANGED**: The page is not affected by the recent changes (no status attribute)
+   - **UNCHANGED**: The page is not affected by the recent changes (omit the status field)
 
 5. **Section Management**:
    - If a **NEW page** is added and it doesn't fit any existing section, create a new section for it
@@ -289,70 +207,15 @@ Each section should contain relevant pages. For example, the "Frontend Component
 - When adding new pages, assign unique IDs (e.g., "page-13", "new-feature-page")
 - If a section becomes empty after removing pages, remove the section too
 
-## Output Format
+## Output Requirements
 
-Return the updated wiki structure in the following XML format:
-
-<wiki_structure>
-  <title>[Overall title for the wiki]</title>
-  <description>[Brief description of the repository]</description>
-  <commit_id>${commitId}</commit_id>
-  <sections>
-    <section id="section-1">
-      <title>[Section title]</title>
-      <pages>
-        <page_ref>page-1</page_ref>
-        <page_ref>page-2</page_ref>
-      </pages>
-    </section>
-    <!-- More sections as needed -->
-  </sections>
-  <pages>
-    <!-- Page needing update (content will be regenerated) -->
-    <page id="existing-page-id" status="UPDATE">
-      <title>[Page title]</title>
-      <description>[Brief description of what this page will cover]</description>
-      <relevant_files>
-        <file_path>[Path to a relevant file]</file_path>
-      </relevant_files>
-      <related_pages>
-        <related>page-2</related>
-      </related_pages>
-    </page>
-    
-    <!-- Brand new page -->
-    <page id="new-page-id" status="NEW">
-      <title>[New Page title]</title>
-      <description>[Brief description of what this page will cover]</description>
-      <relevant_files>
-        <file_path>[Path to a relevant file]</file_path>
-      </relevant_files>
-      <related_pages>
-        <related>page-1</related>
-      </related_pages>
-    </page>
-    
-    <!-- Unchanged page (no status = keep existing content) -->
-    <page id="existing-page-id">
-      <title>[Page title]</title>
-      <description>[Brief description of what this page will cover]</description>
-      <relevant_files>
-        <file_path>[Path to a relevant file]</file_path>
-      </relevant_files>
-      <related_pages>
-        <related>page-3</related>
-      </related_pages>
-    </page>
-    
-    <!-- Pages that should be deleted are simply NOT included -->
-  </pages>
-</wiki_structure>
+The new commit ID is: ${commitId}
 
 IMPORTANT:
 1. Only include pages that should exist in the updated wiki
-2. Use status="NEW" for brand new pages that need full content generation
-3. Use status="UPDATE" for existing pages whose content needs to be regenerated
-4. Omit the status attribute for pages that should keep their existing content
+2. Set status to "NEW" for brand new pages that need full content generation
+3. Set status to "UPDATE" for existing pages whose content needs to be regenerated
+4. Omit the status field for pages that should keep their existing content
 5. Do not include pages that should be deleted - just leave them out
 `;
 }
@@ -370,11 +233,9 @@ export function generatePageContentPrompt(
   return `You are an expert technical writer and software architect.
 Your task is to generate a comprehensive and accurate technical wiki page in Markdown format about a specific feature, system, or module within a given software project.
 
-
-
 You will be given:
 1. The "[WIKI_PAGE_TOPIC]" for the page you need to create.
-2. A list of \"[RELEVANT_SOURCE_FILES]\" from the project that you MUST use as the sole basis for the content. The content of the relevant source files is pre-loaded below. Use these as your primary source of truth.
+2. A list of "[RELEVANT_SOURCE_FILES]" from the project that you MUST use as the sole basis for the content. The content of the relevant source files is pre-loaded below. Use these as your primary source of truth.
 
 **Project Context:**
 - **Repository Name:** ${repoName}
@@ -385,26 +246,7 @@ You will be given:
 - **Page Topic:** ${page.title}
 - **Page Description:** ${page.description}
 
-CRITICAL OUTPUT FORMAT INSTRUCTION:
-Your response MUST be wrapped in the following XML structure inside a \`<details>\` block. Do not provide any acknowledgements, disclaimers, apologies, or any other preface. JUST START with the \`<details>\` block.
-
-Format your response EXACTLY like this:
-<details>
-<RELEVANT_SOURCE_FILES>
-${page.relevantFiles.map(f => `- [${f.filePath}](${f.filePath})`).join('\\n')}
-</RELEVANT_SOURCE_FILES>
-<content>
-# ${page.title}
-
-[Your full wiki page content goes here in Markdown format]
-</content>
-</details>
-
-IMPORTANT:
-- The \`<RELEVANT_SOURCE_FILES>\` section MUST list ALL source files you used to generate the content.
-- The \`<content>\` section contains the actual wiki page in Markdown format, starting with the H1 heading \`# ${page.title}\`.
-
-Based ONLY on the content of the \`[RELEVANT_SOURCE_FILES]\`:
+Based ONLY on the content of the relevant source files:
 
 1.  **Introduction:** Start with a concise introduction (1-2 paragraphs) explaining the purpose, scope, and high-level overview of "${page.title}" within the context of the overall project. If relevant, and if information is available in the provided files, link to other potential wiki pages using the format \`[Link Text](#page-anchor-or-id)\`.
 
@@ -416,9 +258,9 @@ Based ONLY on the content of the \`[RELEVANT_SOURCE_FILES]\`:
     *   Use Mermaid diagrams (flowchart TD, sequenceDiagram, classDiagram, erDiagram) to visually represent architectures, flows, relationships, and schemas found in the source files.
     *   Ensure diagrams are accurate and derived from the source files. Provide a brief explanation before or after each diagram.
     *   CRITICAL diagram rules:
-       - Use \"graph TD\" (top-down) for flow diagrams — NEVER use \"graph LR\" (left-right)
+       - Use "graph TD" (top-down) for flow diagrams — NEVER use "graph LR" (left-right)
        - Maximum node width: 3-4 words
-       - For sequence diagrams: define all participants first using \"participant\" keyword, use ->> for requests and -->> for responses, use +/- for activation boxes
+       - For sequence diagrams: define all participants first using "participant" keyword, use ->> for requests and -->> for responses, use +/- for activation boxes
        - Use structural elements where appropriate: loop, alt/else, opt, par/and, break
        - NEVER use flowchart-style labels like A--|label|-->B — always use A->>B: Label
 
@@ -430,7 +272,7 @@ Based ONLY on the content of the \`[RELEVANT_SOURCE_FILES]\`:
         *   Data model fields, types, constraints, and descriptions.
 
 5.  **Code Snippets (ENTIRELY OPTIONAL):**
-    *   Include short, relevant code snippets (e.g., Python, Java, JavaScript, SQL, JSON, YAML) directly from the \`[RELEVANT_SOURCE_FILES]\` to illustrate key implementation details, data structures, or configurations.
+    *   Include short, relevant code snippets (e.g., Python, Java, JavaScript, SQL, JSON, YAML) directly from the relevant source files to illustrate key implementation details, data structures, or configurations.
     *   Ensure snippets are well-formatted within Markdown code blocks with appropriate language identifiers.
 
 6.  **Source Citations (EXTREMELY IMPORTANT):**
@@ -440,66 +282,32 @@ Based ONLY on the content of the \`[RELEVANT_SOURCE_FILES]\`:
     *   If an entire section is overwhelmingly based on one or two files, you can cite them under the section heading in addition to more specific citations within the section.
     *   IMPORTANT: You MUST cite AT LEAST 5 different source files throughout the wiki page to ensure comprehensive coverage.
 
-7.  **Technical Accuracy:** All information must be derived SOLELY from the \`[RELEVANT_SOURCE_FILES]\`. Do not infer, invent, or use external knowledge about similar systems or common practices unless it's directly supported by the provided code. If information is not present in the provided files, do not include it or explicitly state its absence if crucial to the topic.
+7.  **Technical Accuracy:** All information must be derived SOLELY from the relevant source files. Do not infer, invent, or use external knowledge about similar systems or common practices unless it's directly supported by the provided code. If information is not present in the provided files, do not include it or explicitly state its absence if crucial to the topic.
 
 8.  **Clarity and Conciseness:** Use clear, professional, and concise technical language suitable for other developers working on or learning about the project. Avoid unnecessary jargon, but use correct technical terms where appropriate.
 
-9.  **Conclusion/Summary:** End with a brief summary paragraph if appropriate for \"${page.title}\", reiterating the key aspects covered and their significance within the project.
+9.  **Conclusion/Summary:** End with a brief summary paragraph if appropriate for "${page.title}", reiterating the key aspects covered and their significance within the project.
+
+## Output Requirements
+
+The "content" field should contain the full wiki page in Markdown format, starting with \`# ${page.title}\`.
+The "relevantFiles" field should list ALL source files you actually referenced when writing the content.
 
 ${preloadedFilesSection}`;
 }
 
+// ─── Timeout Retry Prompts ──────────────────────────────────────────────────
+
 export function structureTimeoutRetryPrompt(): string {
-  return "Your previous response was cut off due to a timeout. Please provide a complete but more concise response. Make sure to wrap the entire wiki structure in <wiki_structure>...</wiki_structure> XML tags.";
-}
-
-export function structureParsingRetryPrompt(): string {
-  return `Your previous response could not be parsed. Please provide your response again using the exact XML format below:
-
-  ${getWikiStructureSchema()}
-
-IMPORTANT: Return ONLY the <wiki_structure> XML block with no other text outside it.`;
+  return "Your previous response was cut off due to a timeout. Please provide a complete but more concise wiki structure response.";
 }
 
 export function inferFilesTimeoutRetryPrompt(): string {
-  return "Your previous response was cut off due to a timeout. Please provide a complete but more concise response. Make sure to wrap the file list in <important_files>...</important_files> XML tags.";
-}
-
-export function inferFilesParsingRetryPrompt(): string {
-  return `Your previous response could not be parsed. Please provide your response again using the exact XML format below:
-
-<important_files>
-path/to/file1.ts
-path/to/file2.ts
-path/to/file3.ts
-</important_files>
-
-IMPORTANT: Return ONLY file paths (one per line) wrapped in <important_files> tags. No explanations, no other text.`;
+  return "Your previous response was cut off due to a timeout. Please provide a complete but shorter list of important files.";
 }
 
 export function pageContentTimeoutRetryPrompt(pageTitle: string): string {
-  return `Your previous response for page "${pageTitle}" was cut off due to a timeout. Please provide a complete but more concise response. Make sure to include <content>...</content> tags with the full page content.`;
-}
-
-export function pageContentParsingRetryPrompt(pageTitle: string): string {
-  return `Your previous response for page "${pageTitle}" could not be parsed. Please provide your response again using the exact XML format below:
-
-<details>
-<RELEVANT_SOURCE_FILES>
-- [path/to/file1.ts](path/to/file1.ts)
-- [path/to/file2.ts](path/to/file2.ts)
-</RELEVANT_SOURCE_FILES>
-<content>
-# ${pageTitle}
-
-[Your full wiki page content goes here in Markdown format]
-</content>
-</details>
-
-IMPORTANT:
-- The <RELEVANT_SOURCE_FILES> section MUST list ALL source files you used to generate the content.
-- The <content> section contains the actual wiki page in Markdown format, starting with the H1 heading # ${pageTitle}.
-- Do not include any text outside the <details> block.`;
+  return `Your previous response for page "${pageTitle}" was cut off due to a timeout. Please provide a complete but more concise wiki page.`;
 }
 
 // ─── Utilities ──────────────────────────────────────────────────────────────

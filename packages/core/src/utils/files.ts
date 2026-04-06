@@ -104,6 +104,9 @@ export function formatFileTree(entries: WalkEntry[]): string {
  */
 async function readSafeFile(repoPath: string, resolvedRepoPath: string, filePath: string): Promise<string | null> {
   try {
+    if (filePath.startsWith("/")) {
+      filePath = filePath.slice(1);
+    }
     const absolutePath = path.resolve(repoPath, filePath);
     if (!absolutePath.startsWith(resolvedRepoPath)) {
       logger.warn(`Skipping file outside repo boundary: ${filePath}`);

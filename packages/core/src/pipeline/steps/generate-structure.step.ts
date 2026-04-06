@@ -1,18 +1,16 @@
 import { logger } from "@repositories-wiki/common";
-import type { WikiStructureModel } from "@repositories-wiki/common";
+import type { WikiStructureModel, WikiStructureOutput, InferredFilesOutput } from "@repositories-wiki/common";
+import { WikiStructureOutputSchema, InferredFilesOutputSchema } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
 import {
   generateWikiStructurePrompt,
   inferImportantFilesPrompt,
   structureTimeoutRetryPrompt,
-  structureParsingRetryPrompt,
   inferFilesTimeoutRetryPrompt,
-  inferFilesParsingRetryPrompt,
 } from "../prompts";
-import { parseWikiStructure, parseInferredFiles } from "../../parsers";
 import { walkRepo, formatFileTree, selectCoreFiles, loadInferredFiles } from "../../utils/files";
 import { createTokenizer } from "../../utils/tokenizer";
-import { retryWithSessionRecovery } from "../../utils/retry";
+import { retryWithRecovery } from "../../utils/retry";
 
 export class GenerateStructureStep implements PipelineStep {
   readonly name = "Generate Structure";
@@ -42,7 +40,7 @@ export class GenerateStructureStep implements PipelineStep {
       tokenizer,
     );
 
-    const { wikiStructure, sessionId } = await this.generateWikiStructure(
+    const wikiStructure = await this.generateWikiStructure(
       context.agent,
       context.repoPath,
       context.repoName,
@@ -56,14 +54,12 @@ export class GenerateStructureStep implements PipelineStep {
     return {
       ...context,
       wikiStructure,
-      structureSessionId: sessionId,
     };
   }
 
   /**
-   * Generate wiki structure using the agent with retry logic:
-   * - Timeout/parsing errors: retry with same session + corrective prompt
-   * - General runtime errors: retry with a fresh session
+   * Generate wiki structure using the agent with structured output.
+   * Retry logic handles timeout errors; the framework handles schema validation.
    */
   private async generateWikiStructure(
     agent: NonNullable<PipelineContext['agent']>,
@@ -73,25 +69,29 @@ export class GenerateStructureStep implements PipelineStep {
     llmConfig: PipelineContext['config']['llm'],
     fileTree: string,
     enrichedFiles: Map<string, string>,
-  ): Promise<{ wikiStructure: WikiStructureModel; sessionId: string }> {
+  ): Promise<WikiStructureModel> {
     const originalPrompt = generateWikiStructurePrompt(repoName, commitId, fileTree, enrichedFiles);
 
-    const { parsed: wikiStructure, sessionId } = await retryWithSessionRecovery({
-      run: (prompt, sessionId) =>
-        agent.run({ repoPath, prompt, title: "Generate Wiki Structure", llmConfig, sessionId }),
+    const { parsed: structureOutput } = await retryWithRecovery<WikiStructureOutput>({
+      run: (prompt) =>
+        agent.generate<WikiStructureOutput>({
+          model: llmConfig.modelID,
+          prompt,
+          projectPath: repoPath,
+          structuredOutput: WikiStructureOutputSchema,
+        }),
       originalPrompt,
       timeoutRetryPrompt: structureTimeoutRetryPrompt(),
-      parsingRetryPrompt: structureParsingRetryPrompt(),
-      parse: parseWikiStructure,
       label: "structure generation",
     });
 
-    return { wikiStructure, sessionId };
+    // Convert structured output to WikiStructureModel (add empty content to pages, compute rootSections)
+    return this.toWikiStructureModel(structureOutput);
   }
 
   /**
    * Make a fast, cheap LLM call to infer important files from the file tree.
-   * Includes retry logic for timeout errors with session continuation.
+   * Uses structured output; retry logic handles timeout errors.
    */
   private async inferAndLoadImportantFiles(
     agent: NonNullable<PipelineContext['agent']>,
@@ -106,21 +106,22 @@ export class GenerateStructureStep implements PipelineStep {
       const inferPrompt = inferImportantFilesPrompt(fileTree);
       logger.info("Inferring important files from file tree (fast LLM call)...");
 
-      const { parsed: inferredPaths } = await retryWithSessionRecovery({
-        run: (prompt, sessionId) =>
-          agent.run({
-            repoPath,
+      const modelId = (llmExplorationConfig || llmConfig).modelID;
+
+      const { parsed: inferredResult } = await retryWithRecovery<InferredFilesOutput>({
+        run: (prompt) =>
+          agent.generate<InferredFilesOutput>({
+            model: modelId,
             prompt,
-            title: "Infer Important Files",
-            llmConfig: llmExplorationConfig || llmConfig,
-            sessionId,
+            projectPath: repoPath,
+            structuredOutput: InferredFilesOutputSchema,
           }),
         originalPrompt: inferPrompt,
         timeoutRetryPrompt: inferFilesTimeoutRetryPrompt(),
-        parsingRetryPrompt: inferFilesParsingRetryPrompt(),
-        parse: parseInferredFiles,
         label: "file inference",
       });
+
+      const inferredPaths = inferredResult.files;
 
       if (inferredPaths.length === 0) {
         logger.warn("No files inferred, using tier-selected files only");
@@ -134,5 +135,31 @@ export class GenerateStructureStep implements PipelineStep {
       logger.warn(`Failed to infer important files, using tier-selected files only: ${errorMessage}`);
       return coreFiles;
     }
+  }
+
+  /**
+   * Convert the structured output (which has no content on pages) to a full WikiStructureModel.
+   */
+  private toWikiStructureModel(output: WikiStructureOutput): WikiStructureModel {
+    const sections = output.sections ?? [];
+
+    // All top-level sections are root sections (structured output is flat)
+    const rootSections = sections.map((s: { id: string }) => s.id);
+
+    return {
+      commitId: output.commitId,
+      title: output.title,
+      description: output.description,
+      pages: output.pages.map((page: WikiStructureOutput["pages"][number]) => ({
+        id: page.id,
+        title: page.title,
+        description: page.description,
+        content: "",
+        relevantFiles: page.relevantFiles,
+        relatedPages: page.relatedPages,
+      })),
+      sections: sections.length > 0 ? sections : undefined,
+      rootSections: rootSections.length > 0 ? rootSections : undefined,
+    };
   }
 }

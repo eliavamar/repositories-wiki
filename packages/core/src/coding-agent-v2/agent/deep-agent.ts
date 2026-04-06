@@ -1,6 +1,7 @@
 import { FilesystemBackend, createDeepAgent as createLibDeepAgent } from "deepagents";
-import type { BackendProtocol, WriteResult, EditResult, DeepAgent } from "deepagents";
+import type { BackendProtocol, WriteResult, EditResult, DeepAgent, SupportedResponseFormat } from "deepagents";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
+import { createAgent, ReactAgent } from "langchain";
 
 class ReadOnlyFilesystemBackend extends FilesystemBackend implements BackendProtocol {
   constructor(rootDir: string) {
@@ -29,10 +30,22 @@ class ReadOnlyFilesystemBackend extends FilesystemBackend implements BackendProt
 export function buildDeepAgent(
   chatModel: BaseChatModel,
   projectPath: string,
+  responseFormat?: SupportedResponseFormat,
 ): DeepAgent {
   const backend = new ReadOnlyFilesystemBackend(projectPath);
   return createLibDeepAgent({
     model: chatModel,
     backend,
+    ...(responseFormat ? { responseFormat } : {}),
+  });
+}
+
+export function buildReactAgent(
+  chatModel: BaseChatModel,
+  responseFormat?: SupportedResponseFormat,
+): ReactAgent {
+  return createAgent({
+    model: chatModel,
+    ...(responseFormat ? { responseFormat } : {}),
   });
 }

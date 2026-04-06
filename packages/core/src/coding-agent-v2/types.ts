@@ -1,4 +1,4 @@
-import type { ZodType } from "zod";
+import type { InteropZodType } from "@langchain/core/utils/types";
 import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { Logger } from "@repositories-wiki/common";
 import type { ProviderAdapter } from "./llms/provider-adapter.js";
@@ -32,13 +32,15 @@ export interface AgentOptions {
 export interface GenerateOptions {
   model: string;
   prompt: string;
-  structuredOutput?: ZodType;
+  /** Zod schema (v3 or v4) for structured output. When provided, the agent returns a structuredResponse. */
+  structuredOutput?: InteropZodType;
   projectPath?: string;
 }
 
 
-export interface GenerateResult {
+export interface GenerateResult<T = unknown> {
   answer: string;
+  structuredResponse?: T;
 }
 
 

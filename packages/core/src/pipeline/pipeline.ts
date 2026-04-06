@@ -1,6 +1,7 @@
 import { logger, gitService } from "@repositories-wiki/common";
 import type { WikiGeneratorConfig } from "@repositories-wiki/common";
-import { CodingAgent } from "../coding-agent/agent";
+import { createAgent } from "../coding-agent-v2";
+import type { ModelProvider } from "../coding-agent-v2";
 import type { PipelineContext, PipelineStep, PipelineResult } from "./types";
 
 export class WikiGeneratorPipeline {
@@ -17,8 +18,12 @@ export class WikiGeneratorPipeline {
     logger.info("Starting wiki generation pipeline");
     logger.info(`Repository: ${config.repositoryUrl || config.localRepoPath}`);
 
-    context.agent = new CodingAgent();
-    await context.agent.startServer(config.providerConfig, config.llmExploration);
+    // Collect unique model IDs from config
+    const models = [...new Set([config.llm.modelID, config.llmExploration.modelID])];
+    const provider = (config.providerConfig?.provider ?? config.llm.providerID) as ModelProvider;
+
+    logger.info(`Initializing agent with provider "${provider}" and models: ${models.join(", ")}`);
+    context.agent = await createAgent(models, provider);
 
     try {
       for (const step of this.steps) {
@@ -59,16 +64,6 @@ export class WikiGeneratorPipeline {
   }
 
   private async cleanup(context: PipelineContext): Promise<void> {
-    if (context.agent && context.repoPath) {
-      logger.info("Cleaning up agent sessions...");
-      await context.agent.cleanupSessions(context.repoPath);
-    }
-
-    if (context.agent) {
-      logger.info("Closing agent server...");
-      await context.agent.closeServer();
-    }
-
     if (context.repoPath) {
       logger.info("Cleaning up temporary files...");
       await gitService.cleanup(context.repoPath);

@@ -5,7 +5,7 @@ import { logger } from "@repositories-wiki/common";
 import type { RelevantFile, WikiPage } from "@repositories-wiki/common";
 import type { FileContentsMap, FilePattern, PriorityTier, Tokenizer, WalkEntry } from "./types";
 import { countTokens, isBinaryContent} from "./tokenizer";
-import { MAX_GENERATE_FILE_PRELOADED_TOKENS, MAX_STRUCTURE_PRELOADED_TOKENS, MAX_TREE_ITEMS, TECH_REGISTRY, TIERS, UNIVERSAL_PATTERNS, WALK_EXCLUSIONS } from "./consts";
+import { MAX_GENERATE_FILE_PRELOADED_TOKENS, MAX_STRUCTURE_PRELOADED_TOKENS, TECH_REGISTRY, TIERS, UNIVERSAL_PATTERNS, WALK_EXCLUSIONS } from "./consts";
 
 export function walkRepo(repoPath: string, maxDepth: number = 10): WalkEntry[] {
   const results: WalkEntry[] = [];
@@ -37,7 +37,8 @@ export function walkRepo(repoPath: string, maxDepth: number = 10): WalkEntry[] {
       if (entry.isDirectory()) {
         results.push({ relativePath, isDirectory: true });
         walk(fullPath, depth + 1);
-      } else if (entry.isFile()) {
+        //code is only source of true, ignore docs files.
+      } else if (entry.isFile() && !entry.name.includes(".md")) {
         results.push({ relativePath, isDirectory: false });
       }
     }
@@ -272,14 +273,13 @@ function escapeRegex(str: string): string {
  * - high: >= 65% of max mentions
  */
 export function calculateFileImportance(
-  files: { filePath: string }[],
+  files: string[],
   content: string
 ): RelevantFile[] {
   if (files.length === 0) return [];
 
   // Count mentions for each file
-  const mentionCounts = files.map((file) => {
-    const filePath = file.filePath;
+  const mentionCounts = files.map((filePath) => {
     const fileName = filePath.split("/").pop() || filePath;
 
     const pathRegex = new RegExp(escapeRegex(filePath), "gi");
@@ -293,7 +293,7 @@ export function calculateFileImportance(
 
   const maxCount = Math.max(...mentionCounts, 1);
 
-  return files.map((file, index) => {
+  return files.map((filePath, index) => {
     const count = mentionCounts[index] ?? 0;
     const percentage = (count / maxCount) * 100;
 
@@ -307,7 +307,7 @@ export function calculateFileImportance(
     }
 
     return {
-      filePath: file.filePath,
+      filePath,
       importance,
     };
   });

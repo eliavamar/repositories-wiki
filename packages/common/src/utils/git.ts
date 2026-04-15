@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import os from "os";
 import { logger } from "./logger";
-import { CloneOptions, CloneResult, ChangedFile, ChangedFilesResult, ParsedGithubUrl } from "../types";
+import { CloneOptions, CloneResult, ParsedGithubUrl } from "../types";
 
 export class GitService {
 
@@ -310,65 +310,6 @@ export class GitService {
     }
   }
 
-  /**
-   * Get list of changed files between two commits with their diff content.
-   * Returns files categorized by change type with the actual diff for each file.
-   */
-  async getChangedFiles(
-    repoPath: string,
-    fromCommit: string,
-    toCommit: string
-  ): Promise<ChangedFilesResult> {
-    const git = simpleGit(repoPath);
-    
-    try {
-      // Get list of changed files with status
-      const diffNameStatus = await git.raw([
-        "diff",
-        "--name-status",
-        fromCommit,
-        toCommit,
-      ]);
-
-      const files: ChangedFile[] = [];
-      const lines = diffNameStatus.trim().split("\n").filter(Boolean);
-
-      for (const line of lines) {
-        const [status, ...pathParts] = line.split("\t");
-        const filePath = pathParts.join("\t"); // Handle paths with tabs (rare but possible)
-        
-        if (!status || !filePath) continue;
-
-        let changeType: "added" | "modified" | "deleted";
-        if (status.startsWith("A")) {
-          changeType = "added";
-        } else if (status.startsWith("D")) {
-          changeType = "deleted";
-        } else {
-          changeType = "modified";
-        }
-
-        // Get the diff content for this specific file
-        let diffContent = "";
-        try {
-          diffContent = await git.diff([fromCommit, toCommit, "--", filePath]);
-        } catch {
-          // File might have been renamed or have special characters
-        }
-
-        files.push({
-          path: filePath,
-          changeType,
-          diff: diffContent,
-        });
-      }
-
-      return { files };
-    } catch (error) {
-      logger.debug(`Failed to get diff between ${fromCommit} and ${toCommit}: ${error}`);
-      return { files: [] };
-    }
-  }
 }
 
 export const gitService = new GitService();

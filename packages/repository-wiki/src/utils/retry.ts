@@ -10,9 +10,7 @@ export interface RetryResult<T> {
   parsed: T;
 }
 
-/**
- * Options for retrying an agent call that returns text and needs manual parsing.
- */
+
 export interface RetryWithTextParsingOptions<T> {
   run: (prompt: string) => Promise<AgentGenerateResult>;
   originalPrompt: string;
@@ -23,11 +21,7 @@ export interface RetryWithTextParsingOptions<T> {
   maxRetries?: number;
 }
 
-/**
- * Options for retrying an agent call that uses structured output.
- * The agent returns already-parsed data via `structuredResponse`.
- * Only timeout retries are needed — the framework handles validation/parsing.
- */
+
 export interface RetryWithStructuredOutputOptions<T> {
   run: (prompt: string) => Promise<{ structuredResponse?: T }>;
   originalPrompt: string;
@@ -36,10 +30,7 @@ export interface RetryWithStructuredOutputOptions<T> {
   maxRetries?: number;
 }
 
-/**
- * Union type for backward compatibility. When `parse` is provided, it uses text parsing mode.
- * When `parse` is omitted, it uses structured output mode.
- */
+
 export type RetryWithRecoveryOptions<T> =
   | RetryWithTextParsingOptions<T>
   | RetryWithStructuredOutputOptions<T>;
@@ -50,23 +41,7 @@ function isTextParsingOptions<T>(
   return "parse" in options && typeof options.parse === "function";
 }
 
-/**
- * Retry an agent call with recovery logic.
- *
- * Supports two modes:
- *
- * **Text parsing mode** (when `parse` is provided):
- * - Timeout errors: retry with `timeoutRetryPrompt`
- * - Parsing errors: retry with `parsingRetryPrompt`
- * - General errors: retry with original prompt
- *
- * **Structured output mode** (when `parse` is omitted):
- * - Timeout errors: retry with `timeoutRetryPrompt`
- * - General errors: retry with original prompt
- * - No parsing step — the agent returns structured data directly
- *
- * Since coding-agent-v2 has no session concept, every retry is a fresh call.
- */
+
 export async function retryWithRecovery<T>(
   options: RetryWithRecoveryOptions<T>,
 ): Promise<RetryResult<T>> {

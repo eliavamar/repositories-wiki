@@ -51,7 +51,7 @@ export interface ModelParams {
 }
 
 export const DEFAULT_TEMPERATURE = 0.7;
-export const DEFAULT_MAX_TOKENS = 8192;
+export const DEFAULT_MAX_TOKENS = 16384;
 export const DEFAULT_INPUT_MAX_TOKENS = 200000;
 
 // modelId -> BaseChatModel

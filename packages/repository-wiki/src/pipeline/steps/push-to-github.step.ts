@@ -1,6 +1,7 @@
 import path from "path";
 import { gitService, logger } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
+import { REPOSITORY_WIKI_DIR } from "../../utils/consts";
 
 export class PushToGitHubStep implements PipelineStep {
   readonly name = "Push to GitHub";
@@ -31,7 +32,7 @@ export class PushToGitHubStep implements PipelineStep {
     // Stage only the output directory (written by WriteToLocalStep)
     const outputDirPath = context.config.outputDirPath
       ? context.config.outputDirPath
-      : path.join("memory-bank", "repository-wiki");
+      : REPOSITORY_WIKI_DIR;
     const outputPath = path.join(repoPath, outputDirPath);
     await gitService.addPath(repoPath, outputPath);
 

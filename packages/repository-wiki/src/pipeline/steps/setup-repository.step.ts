@@ -1,9 +1,12 @@
+import fs from "fs";
+import path from "path";
 import { simpleGit } from "simple-git";
 import { gitService, logger } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
+import { REPOSITORY_WIKI_DIR } from "../../utils/consts";
 
-export class CloneRepositoryStep implements PipelineStep {
-  readonly name = "Clone Repository";
+export class SetupRepositoryStep implements PipelineStep {
+  readonly name = "Setup Repository";
 
   async execute(context: PipelineContext): Promise<PipelineContext> {
     const { repositoryUrl, localRepoPath, githubToken, commitId } = context.config;
@@ -14,6 +17,8 @@ export class CloneRepositoryStep implements PipelineStep {
       if (!isGit) {
         throw new Error(`'${localRepoPath}' is not a git repository.`);
       }
+
+      this.ensureOutputDirectoryDoesNotExist(localRepoPath, context.config.outputDirPath)
 
       const git = simpleGit(localRepoPath);
       const currentCommitId = await git.revparse(["HEAD"]);
@@ -36,6 +41,8 @@ export class CloneRepositoryStep implements PipelineStep {
       commitId,
     });
 
+    this.ensureOutputDirectoryDoesNotExist(result.repoPath, context.config.outputDirPath)
+
     logger.info(`Cloned to: ${result.repoPath}`);
     logger.info(`Commit: ${result.commitId}`);
 
@@ -45,5 +52,14 @@ export class CloneRepositoryStep implements PipelineStep {
       repoName: result.repoName,
       commitId: result.commitId,
     };
+  }
+  private ensureOutputDirectoryDoesNotExist(repoPath: string, outputDirPath?: string): void {
+    const resolvedOutputDir = outputDirPath || REPOSITORY_WIKI_DIR;
+    const outputPath = path.join(repoPath, resolvedOutputDir);
+    if (fs.existsSync(outputPath)) {
+      throw new Error(
+        `Repository wiki folder already exists at '${outputPath}'. Please remove it before running the pipeline.`
+      );
+    }
   }
 }

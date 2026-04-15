@@ -1,6 +1,6 @@
-import { logger } from "@repositories-wiki/common";
+import { logger, WikiStructureOutputSchema } from "@repositories-wiki/common";
 import type { WikiStructureModel, WikiStructureOutput, InferredFilesOutput } from "@repositories-wiki/common";
-import { WikiStructureOutputSchema, InferredFilesOutputSchema } from "@repositories-wiki/common";
+import { InferredFilesOutputSchema } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
 import {
   generateWikiStructurePrompt,
@@ -33,7 +33,6 @@ export class GenerateStructureStep implements PipelineStep {
     const enrichedFiles = await this.inferAndLoadImportantFiles(
       context.agent,
       context.repoPath,
-      context.config.llm,
       context.config.llmExploration,
       fileTree,
       coreFiles,
@@ -42,51 +41,53 @@ export class GenerateStructureStep implements PipelineStep {
 
     const wikiStructure = await this.generateWikiStructure(
       context.agent,
-      context.repoPath,
       context.repoName,
       context.commitId,
       context.config.llm,
       fileTree,
       enrichedFiles,
     );
-    logger.info(`Generated structure with ${wikiStructure.pages.length} pages`);
-
     return {
       ...context,
       wikiStructure,
     };
   }
 
-  /**
-   * Generate wiki structure using the agent with structured output.
-   * Retry logic handles timeout errors; the framework handles schema validation.
-   */
+
   private async generateWikiStructure(
     agent: NonNullable<PipelineContext['agent']>,
-    repoPath: string,
     repoName: string,
     commitId: string,
     llmConfig: PipelineContext['config']['llm'],
     fileTree: string,
     enrichedFiles: Map<string, string>,
   ): Promise<WikiStructureModel> {
-    const originalPrompt = generateWikiStructurePrompt(repoName, commitId, fileTree, enrichedFiles);
+    const prompt = generateWikiStructurePrompt(repoName, commitId, fileTree, enrichedFiles);
 
     const { parsed: structureOutput } = await retryWithRecovery<WikiStructureOutput>({
       run: (prompt) =>
         agent.generate<WikiStructureOutput>({
           model: llmConfig.modelID,
           prompt,
-          projectPath: repoPath,
           structuredOutput: WikiStructureOutputSchema,
         }),
-      originalPrompt,
+      originalPrompt: prompt,
       timeoutRetryPrompt: structureTimeoutRetryPrompt(),
       label: "structure generation",
     });
 
-    // Convert structured output to WikiStructureModel (add empty content to pages, compute rootSections)
-    return this.toWikiStructureModel(structureOutput);
+    const wikiStructure: WikiStructureModel = {
+      ...structureOutput,
+      sections: structureOutput.sections.map(section => ({
+        ...section,
+        pages: section.pages.map(page => ({
+          ...page,
+          relevantFiles: page.relevantFiles.map(filePath => ({ filePath })),
+        })),
+      })),
+    };
+
+    return wikiStructure;
   }
 
   /**
@@ -94,9 +95,8 @@ export class GenerateStructureStep implements PipelineStep {
    * Uses structured output; retry logic handles timeout errors.
    */
   private async inferAndLoadImportantFiles(
-    agent: NonNullable<PipelineContext['agent']>,
+    agent: PipelineContext['agent'],
     repoPath: string,
-    llmConfig: PipelineContext['config']['llm'],
     llmExplorationConfig: PipelineContext['config']['llmExploration'],
     fileTree: string,
     coreFiles: Map<string, string>,
@@ -106,14 +106,13 @@ export class GenerateStructureStep implements PipelineStep {
       const inferPrompt = inferImportantFilesPrompt(fileTree);
       logger.info("Inferring important files from file tree (fast LLM call)...");
 
-      const modelId = (llmExplorationConfig || llmConfig).modelID;
+      const modelId = llmExplorationConfig.modelID;
 
       const { parsed: inferredResult } = await retryWithRecovery<InferredFilesOutput>({
         run: (prompt) =>
           agent.generate<InferredFilesOutput>({
             model: modelId,
             prompt,
-            projectPath: repoPath,
             structuredOutput: InferredFilesOutputSchema,
           }),
         originalPrompt: inferPrompt,
@@ -137,29 +136,4 @@ export class GenerateStructureStep implements PipelineStep {
     }
   }
 
-  /**
-   * Convert the structured output (which has no content on pages) to a full WikiStructureModel.
-   */
-  private toWikiStructureModel(output: WikiStructureOutput): WikiStructureModel {
-    const sections = output.sections ?? [];
-
-    // All top-level sections are root sections (structured output is flat)
-    const rootSections = sections.map((s: { id: string }) => s.id);
-
-    return {
-      commitId: output.commitId,
-      title: output.title,
-      description: output.description,
-      pages: output.pages.map((page: WikiStructureOutput["pages"][number]) => ({
-        id: page.id,
-        title: page.title,
-        description: page.description,
-        content: "",
-        relevantFiles: page.relevantFiles,
-        relatedPages: page.relatedPages,
-      })),
-      sections: sections.length > 0 ? sections : undefined,
-      rootSections: rootSections.length > 0 ? rootSections : undefined,
-    };
-  }
 }

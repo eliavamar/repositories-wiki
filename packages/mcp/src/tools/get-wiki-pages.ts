@@ -18,7 +18,6 @@ export type GetWikiPagesInput = z.infer<typeof GetWikiPagesInputSchema>;
 interface PageResult {
   id: string;
   title: string;
-  description: string;
   content: string;
   importance: string;
   relevant_files: { filePath: string; importance?: string }[];
@@ -93,7 +92,6 @@ export async function handleGetWikiPages(
       const pageResult: PageResult = {
         id: page.id,
         title: page.title,
-        description: page.description,
         content: page.content,
         importance: page.importance ?? "medium",
         relevant_files: page.relevantFiles.map(f => ({

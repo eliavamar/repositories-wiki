@@ -12,17 +12,14 @@ export interface CloneResult {
 }
 
 export const ProviderConfigSchema = z.object({
-  provider: z.string(),
-  apiKey: z.string(),
+  providerID: z.string(),
 });
 
 export const LlmConfigSchema = z.object({
-  providerID: z.string(),
   modelID: z.string(),
 });
 
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
-
 
 export const WikiGeneratorConfigSchema = z.object({
   repositoryUrl: z.string().url().optional(),
@@ -30,7 +27,7 @@ export const WikiGeneratorConfigSchema = z.object({
   githubToken: z.string().optional(),
   wikiBranch: z.string().optional(),
   commitId: z.string().optional(),
-  providerConfig: ProviderConfigSchema.optional(),
+  providerConfig: ProviderConfigSchema,
   llm: LlmConfigSchema,
   llmExploration: LlmConfigSchema,
   outputDirPath: z.string().optional(),
@@ -47,138 +44,63 @@ export const WikiGeneratorConfigSchema = z.object({
 )
 
 
-// === Relevant File Schema ===
 export const RelevantFileSchema = z.object({
-  filePath: z.string(),
-  importance: z.enum(["low", "medium", "high"]).optional(),
+  filePath: z.string().describe("Path to a relevant source file in the repository"),
+  importance: z.enum(["low", "medium", "high"]).optional().describe("Importance level of the file relative to the page"),
 });
 
-// === Page Status (for update flow) ===
-export const PageStatusSchema = z.enum(["NEW", "UPDATE"]);
-export type PageStatus = z.infer<typeof PageStatusSchema>;
-
-// === Wiki Page Schema ===
 export const WikiPageSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  description: z.string(),
-  content: z.string(),
-  relevantFiles: z.array(RelevantFileSchema),
-  relatedPages: z.array(z.string()),
-  importance: z.enum(["low", "medium", "high"]).optional(),
-  status: PageStatusSchema.optional(), 
+  title: z.string().describe("Title of the wiki page"),
+  pageId: z.string().describe("Unique identifier for the page"),
+  content: z.string().optional().describe("Full wiki page content in Markdown format"),
+  relevantFiles: z.array(RelevantFileSchema).describe("Source files relevant to this page's topic"),
+  relatedPages: z.array(z.string().describe("ID of a related wiki page")).describe("Other wiki pages related to this page"),
+  importance: z.enum(["low", "medium", "high"]).describe("Importance level of this page (high, medium, or low)"),
 });
 
-// === Wiki Section Schema ===
 export const WikiSectionSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  pages: z.array(z.string()),
+  title: z.string().describe("Title of the wiki section"),
+  pages: z.array(WikiPageSchema).describe("Wiki pages belonging to this section"),
 });
 
-// === Wiki Structure Model Schema ===
 export const WikiStructureModelSchema = z.object({
-  commitId: z.string(),
-  title: z.string(),
-  description: z.string(),
-  pages: z.array(WikiPageSchema),
-  sections: z.array(WikiSectionSchema).optional(),
-  rootSections: z.array(z.string()).optional(),
-});
-
-// ─── Structured Output Schemas (for LLM responseFormat) ─────────────────────
-
-/**
- * Schema for wiki structure generation output (new flow).
- * Pages have no content yet — content is generated in a later step.
- */
-export const WikiStructureOutputSchema = z.object({
+  commitId: z.string().describe("Git commit ID the wiki was generated from"),
   title: z.string().describe("Overall title for the wiki"),
   description: z.string().describe("Brief description of the repository"),
-  commitId: z.string().describe("The commit ID"),
-  pages: z.array(z.object({
-    id: z.string().describe("Unique page identifier, e.g. page-1"),
-    title: z.string().describe("Page title"),
-    description: z.string().describe("What this page covers"),
-    relevantFiles: z.array(z.object({
-      filePath: z.string().describe("Path to a relevant source file from the repo"),
-    })).describe("Relevant source files for this page"),
-    relatedPages: z.array(z.string()).describe("IDs of related pages"),
-  })).describe("All wiki pages"),
-  sections: z.array(z.object({
-    id: z.string().describe("Unique section identifier, e.g. section-1"),
-    title: z.string().describe("Section title"),
-    pages: z.array(z.string()).describe("Page IDs belonging to this section"),
-  })).optional().describe("Logical groupings of pages into sections"),
+  sections: z.array(WikiSectionSchema).describe("Top-level sections organizing the wiki pages"),
 });
 
-/**
- * Schema for wiki structure update output (update flow).
- * Pages may have a status indicating whether they need content regeneration.
- */
-export const WikiStructureUpdateOutputSchema = z.object({
-  title: z.string().describe("Overall title for the wiki"),
-  description: z.string().describe("Brief description of the repository"),
-  commitId: z.string().describe("The new commit ID"),
-  pages: z.array(z.object({
-    id: z.string().describe("Unique page identifier"),
-    title: z.string().describe("Page title"),
-    description: z.string().describe("What this page covers"),
-    relevantFiles: z.array(z.object({
-      filePath: z.string().describe("Path to a relevant source file from the repo"),
-    })).describe("Relevant source files for this page"),
-    relatedPages: z.array(z.string()).describe("IDs of related pages"),
-    status: z.enum(["NEW", "UPDATE"]).optional().describe("NEW for brand new pages, UPDATE for pages needing content regeneration, omit for unchanged pages"),
-  })).describe("All wiki pages (omit pages that should be deleted)"),
-  sections: z.array(z.object({
-    id: z.string().describe("Unique section identifier"),
-    title: z.string().describe("Section title"),
-    pages: z.array(z.string()).describe("Page IDs belonging to this section"),
-  })).optional().describe("Logical groupings of pages into sections"),
+// start types for generateWikiStructure
+const WikiPageOutputSchema = WikiPageSchema.omit({ content: true }).extend({
+  relevantFiles: z.array(z.string().describe("Path to a relevant source file in the repository")).describe("Source files relevant to this page's topic"),
 });
 
-/**
- * Schema for the inferred important files output.
- */
+const WikiSectionOutputSchema = WikiSectionSchema.extend({
+  pages: z.array(WikiPageOutputSchema).describe("Wiki pages belonging to this section"),
+});
+
+export const WikiStructureOutputSchema = WikiStructureModelSchema.extend({
+  sections: z.array(WikiSectionOutputSchema).describe("Top-level sections organizing the wiki pages"),
+});
+// end types for generateWikiStructure
+
+
 export const InferredFilesOutputSchema = z.object({
   files: z.array(z.string().describe("File path from the repository file tree")),
 });
 
-/**
- * Schema for page content generation output.
- */
-export const PageContentOutputSchema = z.object({
-  content: z.string().describe("The full wiki page content in Markdown format, starting with an H1 heading"),
-  relevantFiles: z.array(z.object({
-    filePath: z.string().describe("Path to a source file used to generate the content"),
-  })).describe("Source files referenced in the content"),
-});
-
-// ─── Inferred TypeScript types ──────────────────────────────────────────────
 
 export type LlmConfig = z.infer<typeof LlmConfigSchema>;
 export type WikiGeneratorConfig = z.infer<typeof WikiGeneratorConfigSchema>;
-export type WikiGeneratorConfigInput = z.input<typeof WikiGeneratorConfigSchema>;
 export type AgentResult<T extends z.ZodRawShape> = z.infer<z.ZodObject<T>>;
 export type RelevantFile = z.infer<typeof RelevantFileSchema>;
 export type WikiPage = z.infer<typeof WikiPageSchema>;
 export type WikiSection = z.infer<typeof WikiSectionSchema>;
 export type WikiStructureModel = z.infer<typeof WikiStructureModelSchema>;
-
 export type WikiStructureOutput = z.infer<typeof WikiStructureOutputSchema>;
-export type WikiStructureUpdateOutput = z.infer<typeof WikiStructureUpdateOutputSchema>;
+
 export type InferredFilesOutput = z.infer<typeof InferredFilesOutputSchema>;
-export type PageContentOutput = z.infer<typeof PageContentOutputSchema>;
 
-export interface ChangedFile {
-  path: string;
-  changeType: "added" | "modified" | "deleted";
-  diff: string;
-}
-
-export interface ChangedFilesResult {
-  files: ChangedFile[];
-}
 
 export interface ParsedGithubUrl {
   owner: string;
@@ -186,4 +108,3 @@ export interface ParsedGithubUrl {
   enterpriseApiUrl: string | null;
 }
 
-export const DEFAULT_WIKI_BRANCH = "memory"

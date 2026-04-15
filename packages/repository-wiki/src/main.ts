@@ -1,22 +1,20 @@
 import { logger, WikiGeneratorConfigSchema, type WikiGeneratorConfig } from "@repositories-wiki/common";
 import {
   WikiGeneratorPipeline,
-  CloneRepositoryStep,
-  DetectFlowStep,
-  StructureStep,
+  SetupRepositoryStep,
   GeneratePagesStep,
   PushToGitHubStep,
   WriteToLocalStep,
   type PipelineResult,
+  GenerateStructureStep,
 } from "./pipeline";
 
 export async function generateWiki(config: WikiGeneratorConfig): Promise<PipelineResult> {
   const validatedConfig = WikiGeneratorConfigSchema.parse(config);
 
   const pipeline = new WikiGeneratorPipeline()
-    .addStep(new CloneRepositoryStep())
-    .addStep(new DetectFlowStep())
-    .addStep(new StructureStep()) 
+    .addStep(new SetupRepositoryStep())
+    .addStep(new GenerateStructureStep()) 
     .addStep(new GeneratePagesStep())
     .addStep(new WriteToLocalStep())
     .addStep(new PushToGitHubStep());
@@ -31,10 +29,11 @@ export async function main(config: WikiGeneratorConfig): Promise<void> {
     logger.info("\n=== Wiki Generation Complete ===\n");
     logger.info(`Title: ${result.wikiStructure.title}`);
     logger.info(`Description: ${result.wikiStructure.description}`);
-    logger.info(`Total Pages: ${result.wikiStructure.pages.length}`);
+    const allPages = result.wikiStructure.sections.flatMap((s) => s.pages);
+    logger.info(`Total Pages: ${allPages.length}`);
     logger.info(`Commit: ${result.commitId}`);
     logger.info("\nPages:");
-    for (const page of result.wikiStructure.pages) {
+    for (const page of allPages) {
       logger.info(`  - ${page.title}`);
     }
   } catch (error) {
@@ -47,24 +46,26 @@ export async function main(config: WikiGeneratorConfig): Promise<void> {
 
 export async function run(): Promise<void> {
   // const config: WikiGeneratorConfig = {
-  //   repositoryUrl: "https://github.com/eliavamar/mcp-of-mcps",
-  //   githubToken: process.env.GITHUB_TOKEN,
-  //   wikiBranch: "repository-wiki-memory",
-  //   commitId: "21c02bbc0b7f20f110db31feab8f9aa9e1a87500",
+  //   localRepoPath: "/Users/i563567/projects/eliavamar/opencode",
+  //   providerConfig: {
+  //     providerID: "anthropic",
+  //   },
   //   llm: {
-  //     provider: "anthropic",
-  //     model: "claude-sonnet-4-5",
-  //     apiKey: process.env.ANTHROPIC_API_KEY,
+  //     modelID: "claude-sonnet-4-6",
+  //   },
+  //   llmExploration: {
+  //     modelID: "claude-haiku-4-5-20251001",
   //   },
   // };
-  const config: WikiGeneratorConfig = {
-    localRepoPath: "/Users/i563567/projects/devx-wing/vscode-service-center",
-    llm: {
+    const config: WikiGeneratorConfig = {
+    localRepoPath: "/Users/i563567/projects/eliavamar/opencode",
+    providerConfig:{
       providerID: "sap-ai-core",
+    },
+    llm: {
       modelID: "anthropic--claude-4.6-sonnet",
     },
     llmExploration: {
-      providerID: "sap-ai-core",
       modelID: "anthropic--claude-4.5-haiku",
     },
   };

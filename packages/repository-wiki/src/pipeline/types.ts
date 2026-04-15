@@ -1,5 +1,5 @@
-import type { WikiGeneratorConfig, WikiStructureModel, ChangedFilesResult } from "@repositories-wiki/common";
-import type { Agent } from "../coding-agent-v2";
+import type { WikiGeneratorConfig, WikiStructureModel } from "@repositories-wiki/common";
+import type { Agent } from "../coding-agent";
 
 /**
  * Shared context passed between pipeline steps.
@@ -9,27 +9,16 @@ export interface PipelineContext {
   // Input configuration
   config: WikiGeneratorConfig;
 
-  // Repository info (set by CloneRepositoryStep)
+  // Repository info (set by SetupRepositoryStep)
   repoPath?: string;
   repoName?: string;
   commitId?: string;
-
-  // Flow detection (set by DetectFlowStep)
-  flowType?: "new" | "update";
-  previousCommitId?: string; // Commit ID from existing wiki.json
-  previousWikiStructure?: WikiStructureModel; // Loaded from wiki branch
-  changedFiles?: ChangedFilesResult; // Changed files between commits
-  changedFilesDirPath?: string; // Path to directory with diff files
-
-  // Pipeline control
-  skipPipeline?: boolean; // If true, skip remaining steps
-  skipReason?: string; // Reason for skipping
 
   // Wiki generation (set by GenerateStructureStep & GeneratePagesStep)
   wikiStructure?: WikiStructureModel;
 
   // Agent (managed by pipeline)
-  agent?: Agent;
+  agent: Agent;
 }
 
 /**

@@ -1,6 +1,6 @@
 import { FilePattern, PriorityTier, TechDefinition } from "./types";
 
-export const CONCURRENCY_LIMIT = 16;
+export const CONCURRENCY_LIMIT = 30;
 export const MAX_RETRIES = 5;
 export const MAX_GENERATE_FILE_PRELOADED_TOKENS = 20_000;
 export const MAX_STRUCTURE_PRELOADED_TOKENS = 30_000;
@@ -8,6 +8,7 @@ export const TOKENIZER_MODEL = "gpt-4o";
 export const MAX_TREE_ITEMS = 1000;
 export const FETCH_CODING_CLIENT_TIMEOUT = 5 * 60 * 1000;// 5 minute timeout for long AI responses
 export const TIERS: PriorityTier[] = [1, 2, 3, 4, 5];
+export const REPOSITORY_WIKI_DIR = "repository-wiki";
 export const UNIVERSAL_PATTERNS: FilePattern[] = [
   {
     tier: 1,

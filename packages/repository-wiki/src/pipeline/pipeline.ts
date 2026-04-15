@@ -1,7 +1,7 @@
 import { logger, gitService } from "@repositories-wiki/common";
 import type { WikiGeneratorConfig } from "@repositories-wiki/common";
-import { createAgent } from "../coding-agent-v2";
-import type { ModelProvider } from "../coding-agent-v2";
+import { createAgent } from "../coding-agent";
+import type { ModelProvider } from "../coding-agent";
 import type { PipelineContext, PipelineStep, PipelineResult } from "./types";
 
 export class WikiGeneratorPipeline {
@@ -13,25 +13,20 @@ export class WikiGeneratorPipeline {
   }
 
   async execute(config: WikiGeneratorConfig): Promise<PipelineResult> {
-    let context: PipelineContext = { config };
 
     logger.info("Starting wiki generation pipeline");
     logger.info(`Repository: ${config.repositoryUrl || config.localRepoPath}`);
 
     // Collect unique model IDs from config
     const models = [...new Set([config.llm.modelID, config.llmExploration.modelID])];
-    const provider = (config.providerConfig?.provider ?? config.llm.providerID) as ModelProvider;
+    const provider = (config.providerConfig.providerID) as ModelProvider;
 
     logger.info(`Initializing agent with provider "${provider}" and models: ${models.join(", ")}`);
-    context.agent = await createAgent(models, provider);
+    const agent = await createAgent(models, provider);
+    let context: PipelineContext = { config, agent };
 
     try {
       for (const step of this.steps) {
-        if (context.skipPipeline) {
-          logger.info(`━━━ Skipping step: ${step.name} (${context.skipReason}) ━━━`);
-          continue;
-        }
-
         logger.info(`━━━ Executing step: ${step.name} ━━━`);
         const startTime = Date.now();
 
@@ -47,13 +42,7 @@ export class WikiGeneratorPipeline {
       if (!context.commitId) {
         throw new Error("Pipeline completed but commitId is missing");
       }
-
-      if (context.skipPipeline) {
-        logger.info(`━━━ Pipeline skipped: ${context.skipReason} ━━━`);
-      } else {
-        logger.info("━━━ Pipeline completed successfully ━━━");
-      }
-
+      logger.info("━━━ Pipeline completed successfully ━━━");
       return {
         wikiStructure: context.wikiStructure,
         commitId: context.commitId,

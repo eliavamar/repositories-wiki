@@ -1,7 +1,6 @@
 import pLimit from "p-limit";
 import { logger } from "@repositories-wiki/common";
-import type { WikiStructureModel, WikiPage, PageContentOutput } from "@repositories-wiki/common";
-import { PageContentOutputSchema } from "@repositories-wiki/common";
+import type { WikiPage } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
 import {
   generatePageContentPrompt,
@@ -9,14 +8,22 @@ import {
 } from "../prompts";
 import { calculateFileImportance, getPreloadedFilesForPage, wikiFilesToFileContentsMap } from "../../utils/files";
 import { createTokenizer } from "../../utils/tokenizer";
-import { CONCURRENCY_LIMIT, MAX_RETRIES } from "../../utils/consts";
+import { CONCURRENCY_LIMIT, MAX_RETRIES, REPOSITORY_WIKI_DIR } from "../../utils/consts";
 import { retryWithRecovery } from "../../utils/retry";
 
 interface PageGenerationResult {
   page: WikiPage;
   success: boolean;
   error?: string;
-  filesCount?: number;
+}
+
+
+function parsePageContent(raw: string): string {
+  const match = raw.match(/<content>([\s\S]*?)<\/content>/);
+  if (!match?.[1]) {
+    throw new Error("Could not find <content>...</content> tags in LLM response");
+  }
+  return match[1].trim();
 }
 
 export class GeneratePagesStep implements PipelineStep {
@@ -33,22 +40,17 @@ export class GeneratePagesStep implements PipelineStep {
       throw new Error("wikiStructure is required");
     }
 
-    const { wikiStructure, agent, repoPath, repoName, flowType } = context;
+    const { wikiStructure, agent, repoPath, repoName } = context;
 
-    // Determine which pages need content generation
-    const pagesToGenerate = this.getPagesToGenerate(wikiStructure.pages, flowType);
-    const pagesToSkip = wikiStructure.pages.length - pagesToGenerate.length;
-
-    if (pagesToSkip > 0) {
-      logger.info(`Skipping ${pagesToSkip} pages (content unchanged)`);
+    const pagesToGenerate: WikiPage[] = [];
+    const pageSectionMap = new Map<WikiPage, string>();
+    for (const section of wikiStructure.sections) {
+      for (const page of section.pages) {
+        pagesToGenerate.push(page);
+        pageSectionMap.set(page, section.title);
+      }
     }
-
-    if (pagesToGenerate.length === 0) {
-      logger.info("No pages need content generation");
-      return context;
-    }
-
-    logger.info(`Generating content for ${pagesToGenerate.length} pages (${CONCURRENCY_LIMIT} concurrent)...`);
+    logger.info(`Start generate ${pagesToGenerate.length} wikis pages`);
 
     // Pre-load source files for all pages to inject into prompts
     const tokenizer = await createTokenizer();
@@ -62,50 +64,46 @@ export class GeneratePagesStep implements PipelineStep {
 
     const pageGenerationTasks = pagesToGenerate.map((page) =>
       limit(async (): Promise<PageGenerationResult> => {
-        const statusLabel = page.status ? ` [${page.status}]` : "Page without content";
-        logger.info(`Generating content for: ${page.title}${statusLabel}`);
 
         try {
-          const sectionTitle = findSectionTitle(wikiStructure, page.id);
+          const sectionTitle = pageSectionMap.get(page) ?? "";
           const pageFiles = getPreloadedFilesForPage(page, allPreloadedFiles, tokenizer);
+          const outputDirPath = context.config.outputDirPath? context.config.outputDirPath : REPOSITORY_WIKI_DIR;
+          const pageDepth = this.countPageDepth(outputDirPath)
           const originalPrompt = generatePageContentPrompt(
             page,
             sectionTitle,
             repoName,
             wikiStructure.description,
+            pageDepth,
             pageFiles,
           );
 
-          const modelId = (context.config.llmExploration || context.config.llm).modelID;
+          const modelId = context.config.llmExploration.modelID;
 
-          const { parsed: result } = await retryWithRecovery<PageContentOutput>({
+          const { parsed: content } = await retryWithRecovery<string>({
             run: (prompt) =>
-              agent.generate<PageContentOutput>({
+              agent.generate({
                 model: modelId,
                 prompt,
                 projectPath: repoPath,
-                structuredOutput: PageContentOutputSchema,
               }),
             originalPrompt,
             timeoutRetryPrompt: pageContentTimeoutRetryPrompt(page.title),
+            parsingRetryPrompt: originalPrompt + `Your previous response for page "${page.title}" was missing the required <content>...</content> tags. Please return the wiki page content wrapped in <content> tags. Example: <content>your markdown here</content>`,
+            parse: parsePageContent,
             label: `page "${page.title}"`,
           });
 
-          // Update page with generated content
-          page.content = result.content;
-          if (result.relevantFiles.length > 0) {
-            page.relevantFiles = calculateFileImportance(result.relevantFiles, result.content);
-          }
-
+          this.updatePage(page, content);
           completedCount++;
           logger.info(
-            `✓ Generated: ${page.title} (${result.relevantFiles.length} files) [${completedCount}/${totalCount}]`
+            `✓ Generated: ${page.title} [${completedCount}/${totalCount}]`
           );
 
           return {
             page,
             success: true,
-            filesCount: result.relevantFiles.length,
           };
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error);
@@ -142,42 +140,17 @@ export class GeneratePagesStep implements PipelineStep {
       logger.info(`━━━ All ${totalCount} pages generated successfully ━━━`);
     }
 
-    // Clear status from all pages (including those that were skipped)
-    if(flowType == "update"){
-      for (const page of wikiStructure.pages) {
-        if(page.status){
-          delete page.status;
-        }
-      }
-    }
-
     return context;
   }
 
-  /**
-   * Determine which pages need content generation based on flow type and page status.
-   * - For "new" flow: generate all pages
-   * - For "update" flow: only generate pages with status "NEW" or "UPDATE"
-   */
-  private getPagesToGenerate(pages: WikiPage[], flowType?: "new" | "update"): WikiPage[] {
-    if (flowType === "update") {
-      // Only generate pages that have a status (NEW or UPDATE)
-      return pages.filter((page) => page.status === "NEW" || page.status === "UPDATE" || !page.content);
-    }
-
-    // For new flow, generate all pages
-    return pages;
+  private countPageDepth(pagePath: string) {
+    let pageDepth = 3; // repository wiki folder + sections folder + section folder
+    pageDepth += (pagePath.match(/\//g) || []).length
+    return pageDepth;
   }
-}
-
-function findSectionTitle(wikiStructure: WikiStructureModel, pageId: string): string {
-  if (!wikiStructure.sections) return "General";
-
-  for (const section of wikiStructure.sections) {
-    if (section.pages.includes(pageId)) {
-      return section.title;
-    }
+  private updatePage(page: WikiPage, content: string) {
+    page.content = content;
+    const filesPaths = page.relevantFiles.map((relevantFile) => relevantFile.filePath);
+    page.relevantFiles = calculateFileImportance(filesPaths, content);
   }
-
-  return "General";
 }

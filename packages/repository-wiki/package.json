@@ -8,20 +8,22 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "start": "tsx --env-file=.env src/main.ts",
-    "start-v2": "tsx --env-file=.env src/main-v2.ts"
+    "test": "vitest run"
   },
   "dependencies": {
     "@langchain/core": "^1.1.38",
     "@microsoft/tiktokenizer": "^1.0.10",
     "@repositories-wiki/common": "1.0.0",
-    "deepagents": "^1.8.8",
+    "@sap-ai-sdk/langchain": "^2.9.0",
     "langchain": "^1.2.39",
     "p-limit": "^7.3.0",
     "p-retry": "^7.1.1",
-    "picomatch": "^4.0.3"
+    "picomatch": "^4.0.3",
+    "web-tree-sitter": "^0.26.8"
   },
   "devDependencies": {
     "@types/picomatch": "^4.0.2",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "vitest": "^4.1.4"
   }
 }

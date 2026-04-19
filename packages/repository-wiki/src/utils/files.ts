@@ -6,6 +6,37 @@ import type { RelevantFile, WikiPage } from "@repositories-wiki/common";
 import type { FileContentsMap, FilePattern, PriorityTier, Tokenizer, WalkEntry } from "./types";
 import { countTokens, isBinaryContent} from "./tokenizer";
 import { MAX_GENERATE_FILE_PRELOADED_TOKENS, MAX_STRUCTURE_PRELOADED_TOKENS, TECH_REGISTRY, TIERS, UNIVERSAL_PATTERNS, WALK_EXCLUSIONS } from "./consts";
+import { TreeSitterManager } from "../tree-sitter/tree-sitter-manager";
+
+const README_FILENAMES = [
+  "README.md",
+  "readme.md",
+  "Readme.md",
+  "README",
+  "README.txt",
+  "readme.txt",
+];
+
+/**
+ * Read the README file from the repository root.
+ * Searches for common README filenames and returns the content of the first found.
+ */
+export function readReadme(repoPath: string): string | null {
+  for (const filename of README_FILENAMES) {
+    const filePath = path.join(repoPath, filename);
+    try {
+      const content = fs.readFileSync(filePath, "utf-8");
+      if (content && content.trim().length > 0) {
+        logger.debug(`Found README: ${filename}`);
+        return content;
+      }
+    } catch {
+      // File not found, try next
+    }
+  }
+  logger.debug("No README file found in repository root");
+  return null;
+}
 
 export function walkRepo(repoPath: string, maxDepth: number = 10): WalkEntry[] {
   const results: WalkEntry[] = [];
@@ -207,49 +238,50 @@ export async function selectCoreFiles(
 }
 
 /**
- * Used after the LLM infers important files from the file tree — we read those
- * files and merge them into the existing pre-loaded core files map.
- * 
- * Skips files that are already in `existingFiles`, binary files, and files
- * that exceed the per-file token limit.
+ * Load LLM-inferred important files, converting each to a compact signature
+ * via tree-sitter before counting tokens against the budget.
+ *
+ * Skips binary files and files that exceed the per-file token limit.
  */
 export async function loadInferredFiles(
   repoPath: string,
   filePaths: string[],
   tokenizer: Tokenizer | null,
-  existingFiles: FileContentsMap,
+  treeSitter: TreeSitterManager,
   budget: number = MAX_STRUCTURE_PRELOADED_TOKENS,
 ): Promise<FileContentsMap> {
-  const result: FileContentsMap = new Map(existingFiles);
+  const result: FileContentsMap = new Map();
   const resolvedRepoPath = path.resolve(repoPath);
 
-  // Calculate remaining budget from existing files
-  let usedTokens = 0;
-  for (const content of existingFiles.values()) {
-    usedTokens += countTokens(content, tokenizer);
-  }
-  let remainingBudget = budget - usedTokens;
+  let remainingBudget = budget;
   let addedCount = 0;
+  let signatureCount = 0;
 
   for (const filePath of filePaths) {
     if (remainingBudget <= 0) break;
-    if (result.has(filePath)) continue; // Already pre-loaded by tier selection
 
     const content = await readSafeFile(repoPath, resolvedRepoPath, filePath);
     if (!content) continue;
 
-    const tokens = countTokens(content, tokenizer);
+    // Convert to signature before counting tokens
+    const extraction = await treeSitter.extractFileSignatures(filePath, content);
+    const finalContent = extraction.content;
+    const tokens = countTokens(finalContent, tokenizer);
+
     // Skip very large files to avoid a single file eating the remaining budget
     if (tokens <= remainingBudget && tokens <= 5_000) {
-      result.set(filePath, content);
+      result.set(filePath, finalContent);
       remainingBudget -= tokens;
       addedCount++;
+      if (extraction.type === "signature") {
+        signatureCount++;
+      }
     }
   }
 
   const totalUsed = budget - remainingBudget;
   logger.info(
-    `Loaded ${addedCount} inferred files (total: ${result.size} files, ${totalUsed.toLocaleString()} / ${budget.toLocaleString()} tokens)`
+    `Loaded ${addedCount} inferred files (${signatureCount} as signatures, ${addedCount - signatureCount} as raw/original) (total: ${result.size} files, ${totalUsed.toLocaleString()} / ${budget.toLocaleString()} tokens)`
   );
 
   return result;

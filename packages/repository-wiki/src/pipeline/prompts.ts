@@ -54,39 +54,51 @@ Base on the information above, return as an output only the wiki structure of th
 `;
 }
 
-export function inferImportantFilesPrompt(fileTree: string, maxFiles: number = 30): string {
-  return `You are analyzing a repository's file tree to identify the most architecturally important source files.
 
-## File Tree
+export function inferImportantFilesPrompt(
+  fileTree: string,
+  readmeContent: string | null,
+  maxFiles: number = 150
+): string {
+  const readmeSection = readmeContent
+    ? `\n## README\n\n<readme>\n${readmeContent}\n</readme>\n`
+    : "";
 
-<file_tree>
-${fileTree}
-</file_tree>
+  return `You are an expert software engineer tasked with identifying the most important files in a repository.
 
-## Your Task
+  <repository_info>
+    <file_tree>
+      ${fileTree}
+    </file_tree>
+    ${readmeSection}
+  </repository_info>
 
-From the file tree above, select up to ${maxFiles} files that are most important for understanding this project's architecture, design, and key functionality. These files will be pre-loaded as context for generating wiki documentation.
+These files will serve as the **foundation for generating a comprehensive wiki** for the repository. The wiki will be used by developers to quickly onboard, understand the codebase, and navigate it confidently — without having to read every file themselves.
 
-**Prioritize:**
-1. Entry points (main files, index files, app files)
-2. Configuration files (package.json, tsconfig, build configs, environment configs)
-3. Core type definitions, interfaces, schemas, and models
-4. Route definitions, API endpoints, controllers
-5. Key service/business logic files
-6. Core utility and helper modules
-7. Database schemas, migrations, ORM models
+Choosing the right files is critical: too few and the wiki will be shallow and miss key concepts; too many and the signal gets lost in noise.
 
-**Exclude:**
-- Test files (*.test.*, *.spec.*, __tests__/*)
-- Generated/build output files
-- Lock files (package-lock.json, yarn.lock)
-- Asset files (images, fonts, CSS-only files)
-- Documentation files (*.md)
+Given a file tree and an optional README, return an array of file paths that represent the **core files** of the repository — the minimal set that, when read together, gives a developer a thorough understanding of:
+- The overall architecture and design
+- The main entry points and execution flow
+- Key business logic and domain models
+- Configuration and project structure decisions
 
-IMPORTANT: Only include files that are visible in the file tree above. Do NOT invent paths.
+## Rules
+- Return **at most ${maxFiles} files**.
+- Return **only file paths**, exactly as they appear in the file tree.
+- Do **not** include:
+  - Test files (e.g. \`*.test.ts\`, \`*.spec.js\`, \`__tests__/\`)
+  - Auto-generated files (e.g. \`dist/\`, \`build/\`, \`*.lock\`, \`*.min.js\`)
+  - Assets (e.g. images, fonts, icons)
+  - Documentation files other than the root README
+  - Dependency directories (e.g. \`node_modules/\`, \`.venv/\`, \`vendor/\`)
+- Prefer files that are **widely imported** or depended upon by others (e.g. core modules, shared utilities, base classes).
+- Prefer **entry points** (e.g. \`main.ts\`, \`index.ts\`, \`app.py\`, \`server.go\`).
+- Prefer **configuration files** that reveal architectural decisions (e.g. \`tsconfig.json\`, \`webpack.config.js\`, \`Dockerfile\`, \`schema.prisma\`).
+- If a directory has many similar files, pick the most representative one or two — do not list all of them.
+- Order the files from **most important to least important**.
 `;
 }
-
 
 export function generatePageContentPrompt(
   page: WikiPage,

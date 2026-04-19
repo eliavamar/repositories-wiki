@@ -2,6 +2,7 @@ import { logger, WikiGeneratorConfigSchema, type WikiGeneratorConfig } from "@re
 import {
   WikiGeneratorPipeline,
   SetupRepositoryStep,
+  InferFilesStep,
   GeneratePagesStep,
   PushToGitHubStep,
   WriteToLocalStep,
@@ -14,7 +15,8 @@ export async function generateWiki(config: WikiGeneratorConfig): Promise<Pipelin
 
   const pipeline = new WikiGeneratorPipeline()
     .addStep(new SetupRepositoryStep())
-    .addStep(new GenerateStructureStep()) 
+    .addStep(new InferFilesStep())
+    .addStep(new GenerateStructureStep())
     .addStep(new GeneratePagesStep())
     .addStep(new WriteToLocalStep())
     .addStep(new PushToGitHubStep());

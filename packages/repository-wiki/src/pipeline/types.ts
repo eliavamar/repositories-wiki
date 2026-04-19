@@ -14,6 +14,9 @@ export interface PipelineContext {
   repoName?: string;
   commitId?: string;
 
+  // File exploration (set by InferFilesStep)
+  enrichedFiles?: Map<string, string>;
+
   // Wiki generation (set by GenerateStructureStep & GeneratePagesStep)
   wikiStructure?: WikiStructureModel;
 

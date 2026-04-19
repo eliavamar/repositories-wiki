@@ -14,7 +14,6 @@ interface MatchingChunk {
 export interface ScoredPageResult {
   pageId: string;
   title: string;
-  description: string;
   repoUrl: string;
   sectionTitle: string | undefined;
   importance: string;
@@ -87,7 +86,6 @@ export async function searchWiki(
     scoredPages.push({
       pageId: page.id,
       title: page.title,
-      description: page.description,
       repoUrl: pageRepoUrl,
       sectionTitle,
       importance: page.importance ?? "medium",

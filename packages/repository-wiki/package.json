@@ -1,0 +1,29 @@
+{
+  "name": "@repositories-wiki/repository-wiki",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "start": "tsx --env-file=.env src/main.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.1.38",
+    "@microsoft/tiktokenizer": "^1.0.10",
+    "@repositories-wiki/common": "1.0.0",
+    "@sap-ai-sdk/langchain": "^2.9.0",
+    "langchain": "^1.2.39",
+    "p-limit": "^7.3.0",
+    "p-retry": "^7.1.1",
+    "picomatch": "^4.0.3",
+    "web-tree-sitter": "^0.26.8"
+  },
+  "devDependencies": {
+    "@types/picomatch": "^4.0.2",
+    "tsx": "^4.21.0",
+    "vitest": "^4.1.4"
+  }
+}

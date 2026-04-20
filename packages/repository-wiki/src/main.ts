@@ -60,7 +60,7 @@ export async function run(): Promise<void> {
   //   },
   // };
     const config: WikiGeneratorConfig = {
-    localRepoPath: "/Users/i563567/projects/eliavamar/opencode",
+    localRepoPath: "/Users/i563567/projects/devx-wing/vscode-service-center",
     providerConfig:{
       providerID: "sap-ai-core",
     },

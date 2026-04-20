@@ -66,7 +66,7 @@ export const WikiSectionSchema = z.object({
 export const WikiStructureModelSchema = z.object({
   commitId: z.string().describe("Git commit ID the wiki was generated from"),
   title: z.string().describe("Overall title for the wiki"),
-  description: z.string().describe("Brief description of the repository"),
+  description: z.string().describe("Brief description of the repository (1-2 sentences, max 200 characters)"),
   sections: z.array(WikiSectionSchema).describe("Top-level sections organizing the wiki pages"),
 });
 

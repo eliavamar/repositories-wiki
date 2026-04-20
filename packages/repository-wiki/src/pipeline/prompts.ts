@@ -50,6 +50,8 @@ Strictly matching the wiki size to the project's actual complexity is crucial be
 3. Determine what a developer needs to understand to work with it effectively.
 4. Plan your sections and pages based on the repository's actual scale.
 
+5. Write a concise description of the repository (1-2 sentences, max 200 characters).
+
 Base on the information above, return as an output only the wiki structure of the repository.
 `;
 }

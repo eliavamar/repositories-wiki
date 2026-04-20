@@ -3,9 +3,8 @@ import path from "path";
 import { logger } from "@repositories-wiki/common";
 import type { WikiStructureModel } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
-import { REPOSITORY_WIKI_DIR } from "../../utils/consts";
+import { REPOSITORY_WIKI_DIR, AGENTS_MD_FILENAME } from "../../utils/consts";
 
-const AGENTS_MD_FILENAME = "AGENTS.md";
 const INDEX_MD_FILENAME = "INDEX.md";
 const WIKI_SECTION_HEADER = "## Repository Wiki";
 
@@ -67,7 +66,6 @@ export class WriteToLocalStep implements PipelineStep {
   }
 }
 
-// ─── AGENTS.md Generation ───────────────────────────────────────────────────
 
 export function generateAgentsMdSection(description: string, outputDirPath: string): string {
   return `${WIKI_SECTION_HEADER}
@@ -121,7 +119,6 @@ function replaceOrAppendSection(content: string, newSection: string): string {
   return before + newSection + "\n" + after;
 }
 
-// ─── INDEX.md Generation ────────────────────────────────────────────────────
 
 export function generateIndexMd(wikiStructure: WikiStructureModel, outputDirPath: string): string {
   const lines: string[] = [
@@ -154,7 +151,6 @@ export function generateIndexMd(wikiStructure: WikiStructureModel, outputDirPath
   return lines.join("\n");
 }
 
-// ─── Utilities ──────────────────────────────────────────────────────────────
 
 function slugify(text: string): string {
   return text

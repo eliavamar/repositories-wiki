@@ -4,17 +4,20 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "bin": {
+    "repository-wiki": "./dist/cli.js"
+  },
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist",
-    "start": "tsx --env-file=.env src/main.ts",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "start": "tsx --env-file=.env src/cli.ts",
     "test": "vitest run"
   },
   "dependencies": {
     "@langchain/core": "^1.1.38",
     "@microsoft/tiktokenizer": "^1.0.10",
     "@repositories-wiki/common": "1.0.0",
-    "@sap-ai-sdk/langchain": "^2.9.0",
+    "commander": "^14.0.3",
     "langchain": "^1.2.39",
     "p-limit": "^7.3.0",
     "p-retry": "^7.1.1",

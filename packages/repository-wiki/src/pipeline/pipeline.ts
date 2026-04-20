@@ -3,9 +3,28 @@ import type { WikiGeneratorConfig } from "@repositories-wiki/common";
 import { createAgent } from "../coding-agent";
 import type { ModelProvider } from "../coding-agent";
 import type { PipelineContext, PipelineStep, PipelineResult } from "./types";
+import {
+  SetupRepositoryStep,
+  InferFilesStep,
+  GenerateStructureStep,
+  GeneratePagesStep,
+  WriteToLocalStep,
+  PushToGitHubStep,
+} from "./steps";
 
 export class WikiGeneratorPipeline {
   private steps: PipelineStep[] = [];
+
+
+  static create(): WikiGeneratorPipeline {
+    return new WikiGeneratorPipeline()
+      .addStep(new SetupRepositoryStep())
+      .addStep(new InferFilesStep())
+      .addStep(new GenerateStructureStep())
+      .addStep(new GeneratePagesStep())
+      .addStep(new WriteToLocalStep())
+      .addStep(new PushToGitHubStep());
+  }
 
   addStep(step: PipelineStep): this {
     this.steps.push(step);

@@ -1,11 +1,10 @@
 import fs from "fs";
 import path from "path";
-import picomatch from "picomatch";
 import { logger } from "@repositories-wiki/common";
 import type { RelevantFile, WikiPage } from "@repositories-wiki/common";
-import type { FileContentsMap, FilePattern, PriorityTier, Tokenizer, WalkEntry } from "./types";
+import type { FileContentsMap, Tokenizer, WalkEntry } from "./types";
 import { countTokens, isBinaryContent} from "./tokenizer";
-import { MAX_GENERATE_FILE_PRELOADED_TOKENS, MAX_STRUCTURE_PRELOADED_TOKENS, TECH_REGISTRY, TIERS, UNIVERSAL_PATTERNS, WALK_EXCLUSIONS } from "./consts";
+import { MAX_GENERATE_FILE_PRELOADED_TOKENS, MAX_STRUCTURE_PRELOADED_TOKENS, WALK_EXCLUSIONS } from "./consts";
 import { TreeSitterManager } from "../tree-sitter/tree-sitter-manager";
 
 const README_FILENAMES = [
@@ -158,84 +157,7 @@ async function readSafeFile(repoPath: string, resolvedRepoPath: string, filePath
   }
 }
 
-function buildTierMatchers(): Map<PriorityTier, picomatch.Matcher> {
-  const tierGlobs = new Map<PriorityTier, string[]>();
 
-  const allPatterns: FilePattern[] = [
-    ...UNIVERSAL_PATTERNS,
-    ...TECH_REGISTRY.flatMap((t) => t.patterns),
-  ];
-
-  for (const pattern of allPatterns) {
-    const globs = tierGlobs.get(pattern.tier) || [];
-    globs.push(...pattern.globs);
-    tierGlobs.set(pattern.tier, globs);
-  }
-
-  return new Map(
-    Array.from(tierGlobs, ([tier, globs]) => [tier, picomatch(globs)])
-  );
-}
-
-/**
- * Select core/important files from a repository.
- *
- * 1. Builds one matcher per priority tier from all known tech patterns
- * 2. Assigns each file to its highest-priority tier
- * 3. Reads files tier-by-tier within the token budget
- */
-export async function selectCoreFiles(
-  repoPath: string,
-  entries: WalkEntry[],
-  tokenizer: Tokenizer | null,
-  budget: number = MAX_STRUCTURE_PRELOADED_TOKENS,
-): Promise<FileContentsMap> {
-  const result: FileContentsMap = new Map();
-  const tierMatchers = buildTierMatchers();
-
-  // Assign each file to its highest-priority matching tier
-  const tierFiles = new Map<PriorityTier, string[]>();
-
-  for (const { relativePath: file, isDirectory } of entries) {
-    if (isDirectory) continue;
-    for (const tier of TIERS) {
-      if (tierMatchers.get(tier)?.(file)) {
-        const list = tierFiles.get(tier) || [];
-        list.push(file);
-        tierFiles.set(tier, list);
-        break;
-      }
-    }
-  }
-
-  // Read files tier-by-tier within budget
-  const resolvedRepoPath = path.resolve(repoPath);
-  let remainingBudget = budget;
-  let selectedCount = 0;
-
-  for (const tier of TIERS) {
-    for (const file of tierFiles.get(tier) || []) {
-      if (remainingBudget <= 0) break;
-
-      const content = await readSafeFile(repoPath, resolvedRepoPath, file);
-      if (!content) continue;
-
-      const tokens = countTokens(content, tokenizer);
-      if (tokens <= remainingBudget) {
-        result.set(file, content);
-        remainingBudget -= tokens;
-        selectedCount++;
-      }
-    }
-  }
-
-  const usedTokens = budget - remainingBudget;
-  logger.info(
-    `Selected ${selectedCount} core files (${usedTokens.toLocaleString()} / ${budget.toLocaleString()} tokens)`
-  );
-
-  return result;
-}
 
 /**
  * Load LLM-inferred important files, converting each to a compact signature

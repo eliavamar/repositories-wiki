@@ -2,6 +2,20 @@ import pRetry from "p-retry";
 import { logger } from "@repositories-wiki/common";
 import { MAX_RETRIES } from "./consts";
 
+function formatError(error: unknown): string {
+  if (error instanceof Error) {
+    return error.stack || error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  try {
+    return JSON.stringify(error, null, 2);
+  } catch {
+    return String(error);
+  }
+}
+
 export interface AgentGenerateResult {
   answer: string;
 }
@@ -79,14 +93,15 @@ export async function retryWithRecovery<T>(
       try {
         result = await run(prompt);
       } catch (error) {
+        const errorMessage = formatError(error);
         if (
           error instanceof Error &&
           (error.name === "AbortError" || error.message?.includes("aborted"))
         ) {
           lastErrorType = "timeout";
-          throw new Error(`Agent timed out (${label}): ${error.message}`);
+          throw new Error(`Agent timed out (${label}): ${errorMessage}`);
         }
-        throw error;
+        throw new Error(`${label} failed: ${errorMessage}`);
       }
 
       // Structured output mode: return the structured response directly
@@ -111,11 +126,10 @@ export async function retryWithRecovery<T>(
     },
     {
       retries: maxRetries,
-      onFailedAttempt: (error) => {
-        const msg = error instanceof Error ? error.message : String(error);
+      onFailedAttempt: (context) => {
+        const msg = formatError(context.error);
         logger.warn(
-          `Failed ${label} (attempt ${error.attemptNumber}/${maxRetries + 1}) - Retrying...`,
-          { error: msg },
+          `Failed ${label} (attempt ${context.attemptNumber}/${maxRetries + 1}) - Retrying...\n  Error: ${msg}`,
         );
       },
     },

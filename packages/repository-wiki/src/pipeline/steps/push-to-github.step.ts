@@ -1,7 +1,7 @@
 import path from "path";
 import { gitService, logger } from "@repositories-wiki/common";
 import type { PipelineContext, PipelineStep } from "../types";
-import { REPOSITORY_WIKI_DIR } from "../../utils/consts";
+import { REPOSITORY_WIKI_DIR, AGENTS_MD_FILENAME } from "../../utils/consts";
 
 export class PushToGitHubStep implements PipelineStep {
   readonly name = "Push to GitHub";
@@ -29,12 +29,16 @@ export class PushToGitHubStep implements PipelineStep {
     await gitService.createBranch(repoPath, wikiBranch);
     logger.info(`Checked out new branch: ${wikiBranch}`);
 
-    // Stage only the output directory (written by WriteToLocalStep)
+    // Stage the output directory (written by WriteToLocalStep)
     const outputDirPath = context.config.outputDirPath
       ? context.config.outputDirPath
       : REPOSITORY_WIKI_DIR;
     const outputPath = path.join(repoPath, outputDirPath);
     await gitService.addPath(repoPath, outputPath);
+
+    // Stage the AGENTS.md file at the repo root (written by WriteToLocalStep)
+    const agentsMdPath = path.join(repoPath, AGENTS_MD_FILENAME);
+    await gitService.addPath(repoPath, agentsMdPath);
 
     // Commit
     const commitMessage = `Wiki generated from commit ${commitId.substring(0, 7)}`;

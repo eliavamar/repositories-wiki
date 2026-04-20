@@ -52,23 +52,29 @@ export async function run(): Promise<void> {
   //   providerConfig: {
   //     providerID: "anthropic",
   //   },
-  //   llm: {
+  //   llmPlaner: {
   //     modelID: "claude-sonnet-4-6",
   //   },
   //   llmExploration: {
   //     modelID: "claude-haiku-4-5-20251001",
   //   },
+  //   llmBuilder: {
+  //     modelID: "claude-haiku-4-5-20251001",
+  //   },
   // };
     const config: WikiGeneratorConfig = {
-    localRepoPath: "/Users/i563567/projects/devx-wing/vscode-service-center",
+    localRepoPath: "/Users/i563567/projects/eliavamar/opencode",
     providerConfig:{
       providerID: "sap-ai-core",
     },
-    llm: {
-      modelID: "anthropic--claude-4.6-sonnet",
+    llmPlaner: {
+      modelID: "anthropic--claude-4.6-opus",
     },
     llmExploration: {
       modelID: "anthropic--claude-4.5-haiku",
+    },
+    llmBuilder: {
+      modelID: "anthropic--claude-4.5-sonnet",
     },
   };
   await main(config);

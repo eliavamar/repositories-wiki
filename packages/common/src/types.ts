@@ -28,8 +28,9 @@ export const WikiGeneratorConfigSchema = z.object({
   wikiBranch: z.string().optional(),
   commitId: z.string().optional(),
   providerConfig: ProviderConfigSchema,
-  llm: LlmConfigSchema,
+  llmPlaner: LlmConfigSchema,
   llmExploration: LlmConfigSchema,
+  llmBuilder: LlmConfigSchema,
   outputDirPath: z.string().optional(),
   pushToGithub: z.boolean().optional(),
 }).refine(

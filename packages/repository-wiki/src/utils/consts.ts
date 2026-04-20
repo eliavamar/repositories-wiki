@@ -1,6 +1,6 @@
 import { FilePattern, PriorityTier, TechDefinition } from "./types";
 
-export const CONCURRENCY_LIMIT = 30;
+export const CONCURRENCY_LIMIT = 100;
 export const MAX_RETRIES = 5;
 export const MAX_GENERATE_FILE_PRELOADED_TOKENS = 20_000;
 export const MAX_STRUCTURE_PRELOADED_TOKENS = 50_000;

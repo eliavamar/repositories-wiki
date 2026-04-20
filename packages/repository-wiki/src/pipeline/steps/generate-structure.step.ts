@@ -27,7 +27,7 @@ export class GenerateStructureStep implements PipelineStep {
       context.agent,
       context.repoName,
       context.commitId,
-      context.config.llm,
+      context.config.llmPlaner,
       fileTree,
       context.enrichedFiles,
     );
@@ -42,7 +42,7 @@ export class GenerateStructureStep implements PipelineStep {
     agent: NonNullable<PipelineContext['agent']>,
     repoName: string,
     commitId: string,
-    llmConfig: PipelineContext['config']['llm'],
+    llmConfig: PipelineContext['config']['llmPlaner'],
     fileTree: string,
     enrichedFiles: Map<string, string>,
   ): Promise<WikiStructureModel> {

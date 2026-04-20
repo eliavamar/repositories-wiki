@@ -18,7 +18,7 @@ export class WikiGeneratorPipeline {
     logger.info(`Repository: ${config.repositoryUrl || config.localRepoPath}`);
 
     // Collect unique model IDs from config
-    const models = [...new Set([config.llm.modelID, config.llmExploration.modelID])];
+    const models = [...new Set([config.llmPlaner.modelID, config.llmExploration.modelID, config.llmBuilder.modelID])];
     const provider = (config.providerConfig.providerID) as ModelProvider;
 
     logger.info(`Initializing agent with provider "${provider}" and models: ${models.join(", ")}`);

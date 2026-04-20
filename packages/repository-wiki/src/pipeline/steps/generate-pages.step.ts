@@ -79,7 +79,7 @@ export class GeneratePagesStep implements PipelineStep {
             pageFiles,
           );
 
-          const modelId = context.config.llmExploration.modelID;
+          const modelId = context.config.llmBuilder.modelID;
 
           const { parsed: content } = await retryWithRecovery<string>({
             run: (prompt) =>

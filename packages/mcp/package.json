@@ -14,11 +14,7 @@
     "start": "tsx src/index.ts"
   },
   "dependencies": {
-    "@huggingface/transformers": "^3.0.0",
-    "@langchain/textsplitters": "^0.1.0",
     "@modelcontextprotocol/sdk": "^1.27.0",
-    "@orama/orama": "^3.1.18",
-    "@orama/plugin-data-persistence": "^3.1.18",
     "@repositories-wiki/common": "1.0.0"
   },
   "devDependencies": {

@@ -3,6 +3,10 @@ import { z } from "zod";
 export interface CloneOptions {
   token?: string;
   commitId?: string;
+  /** When provided, clone into this directory instead of creating a random temp dir */
+  targetDir?: string;
+  /** When provided, checkout this branch after cloning */
+  branch?: string;
 }
 
 export interface CloneResult {

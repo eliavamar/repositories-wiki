@@ -2,8 +2,8 @@ import { simpleGit } from "simple-git";
 import fs from "fs";
 import path from "path";
 import os from "os";
-import { logger } from "./logger";
-import { CloneOptions, CloneResult, ParsedGithubUrl } from "../types";
+import { logger } from "./logger.js";
+import { CloneOptions, CloneResult, ParsedGithubUrl } from "../types.js";
 
 export class GitService {
 
@@ -50,6 +50,15 @@ export class GitService {
     }
   }
 
+  /**
+   * Extract "owner/repo" identifier from a GitHub URL.
+   * e.g., "https://github.com/org-a/my-app" → "org-a/my-app"
+   */
+  extractOwnerRepo(url: string): string {
+    const { owner, repo } = this.parseGithubUrl(url);
+    return `${owner}/${repo}`;
+  }
+
   extractRepoName(url: string): string {
     try {
       const parsed = new URL(url);
@@ -82,8 +91,12 @@ export class GitService {
     options: CloneOptions = {}
   ): Promise<CloneResult> {
     const repoName = this.extractRepoName(url);
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `${repoName}-`));
-    logger.info(`Cloning repository ${url} to ${tmpDir}`);
+
+    // Use targetDir if provided, otherwise create a random temp directory
+    const cloneDir = options.targetDir
+      ? options.targetDir
+      : fs.mkdtempSync(path.join(os.tmpdir(), `${repoName}-`));
+    logger.info(`Cloning repository ${url} to ${cloneDir}`);
 
     // Inject token into URL if provided
     let cloneUrl = url;
@@ -99,9 +112,15 @@ export class GitService {
     }
 
     const git = simpleGit();
-    await git.clone(cloneUrl, tmpDir);
+    await git.clone(cloneUrl, cloneDir);
 
-    const repoGit = simpleGit(tmpDir);
+    const repoGit = simpleGit(cloneDir);
+
+    // Checkout specific branch if provided
+    if (options.branch) {
+      await repoGit.checkout(options.branch);
+      logger.info(`Checked out branch ${options.branch}`);
+    }
 
     // Checkout specific commit if provided
     if (options.commitId) {
@@ -112,8 +131,8 @@ export class GitService {
     // Get the current HEAD commit using revparse (most efficient)
     const commitId = await repoGit.revparse(["HEAD"]);
 
-    logger.info(`Repository cloned successfully to ${tmpDir} at commit ${commitId}`);
-    return { repoPath: tmpDir, commitId, repoName };
+    logger.info(`Repository cloned successfully to ${cloneDir} at commit ${commitId}`);
+    return { repoPath: cloneDir, commitId, repoName };
   }
 
   /**

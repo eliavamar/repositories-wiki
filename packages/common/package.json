@@ -8,10 +8,14 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "test": "vitest run"
   },
   "dependencies": {
     "simple-git": "^3.27.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.4"
   },
   "keywords": [],
   "author": "",

@@ -39,25 +39,25 @@ export class Logger {
 
   debug(message: string, ...args: unknown[]): void {
     if (this.shouldLog("debug")) {
-      console.debug(this.format("debug", message, ...args));
+      process.stderr.write(this.format("debug", message, ...args) + "\n");
     }
   }
 
   info(message: string, ...args: unknown[]): void {
     if (this.shouldLog("info")) {
-      console.info(this.format("info", message, ...args));
+      process.stderr.write(this.format("info", message, ...args) + "\n");
     }
   }
 
   warn(message: string, ...args: unknown[]): void {
     if (this.shouldLog("warn")) {
-      console.warn(this.format("warn", message, ...args));
+      process.stderr.write(this.format("warn", message, ...args) + "\n");
     }
   }
 
   error(message: string, ...args: unknown[]): void {
     if (this.shouldLog("error")) {
-      console.error(this.format("error", message, ...args));
+      process.stderr.write(this.format("error", message, ...args) + "\n");
     }
   }
 }

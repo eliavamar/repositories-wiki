@@ -16,7 +16,7 @@
   "dependencies": {
     "@langchain/core": "^1.1.38",
     "@microsoft/tiktokenizer": "^1.0.10",
-    "@repositories-wiki/common": "1.0.0",
+    "@repositories-wiki/common": "*",
     "commander": "^14.0.3",
     "langchain": "^1.2.39",
     "p-limit": "^7.3.0",

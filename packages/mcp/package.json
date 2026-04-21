@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.0",
-    "@repositories-wiki/common": "1.0.0"
+    "@repositories-wiki/common": "*"
   },
   "devDependencies": {
     "tsx": "^4.21.0"

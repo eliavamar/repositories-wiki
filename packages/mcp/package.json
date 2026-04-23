@@ -2,22 +2,33 @@
   "name": "@repositories-wiki/mcp",
   "version": "1.0.0",
   "type": "module",
-  "private": true,
+  "description": "MCP server for repositories-wiki — browse wiki indexes, pages, and source files",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eliavamar/repositories-wiki.git",
+    "directory": "packages/mcp"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
     "repositories-wiki-mcp": "./dist/index.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc",
-    "clean": "rm -rf dist",
+    "build": "tsc --noEmit && node ../../scripts/bundle.mjs mcp src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "start": "tsx src/index.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.0",
-    "@repositories-wiki/common": "*"
+    "simple-git": "^3.27.0"
   },
   "devDependencies": {
+    "@repositories-wiki/common": "*",
     "tsx": "^4.21.0"
   }
 }

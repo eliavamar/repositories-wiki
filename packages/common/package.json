@@ -1,14 +1,23 @@
 {
   "name": "@repositories-wiki/common",
   "private": true,
-  "type": "module",
   "version": "1.0.0",
+  "type": "module",
   "description": "Shared types, utilities, and constants for repositories-wiki",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eliavamar/repositories-wiki.git",
+    "directory": "packages/common"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "test": "vitest run"
   },
   "dependencies": {
@@ -16,8 +25,5 @@
   },
   "devDependencies": {
     "vitest": "^4.1.4"
-  },
-  "keywords": [],
-  "author": "",
-  "license": "ISC"
+  }
 }

@@ -2,13 +2,24 @@
   "name": "@repositories-wiki/repository-wiki",
   "version": "1.0.0",
   "type": "module",
+  "description": "Generate a wiki from a source code repository using LLMs",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eliavamar/repositories-wiki.git",
+    "directory": "packages/repository-wiki"
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
     "repository-wiki": "./dist/cli.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --noEmit && node ../../scripts/bundle.mjs repository-wiki src/cli.ts src/index.ts",
+    "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist tsconfig.tsbuildinfo",
     "start": "tsx --env-file=.env src/cli.ts",
     "test": "vitest run"
@@ -16,15 +27,16 @@
   "dependencies": {
     "@langchain/core": "^1.1.38",
     "@microsoft/tiktokenizer": "^1.0.10",
-    "@repositories-wiki/common": "*",
     "commander": "^14.0.3",
     "langchain": "^1.2.39",
     "p-limit": "^7.3.0",
     "p-retry": "^7.1.1",
     "picomatch": "^4.0.3",
+    "simple-git": "^3.27.0",
     "web-tree-sitter": "^0.26.8"
   },
   "devDependencies": {
+    "@repositories-wiki/common": "*",
     "@types/picomatch": "^4.0.2",
     "tsx": "^4.21.0",
     "vitest": "^4.1.4"

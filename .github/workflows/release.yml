@@ -1,0 +1,60 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+concurrency: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+      - run: npm run build
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Version packages
+        run: npx changeset version
+
+      - name: Commit version bumps
+        run: |
+          git add .
+          git commit -m "chore: version packages" || echo "No changes to commit"
+          git push
+
+      - name: Publish to npm
+        run: npx changeset publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Releases
+        run: |
+          for dir in packages/*/; do
+            pkg_name=$(node -p "require('./$dir/package.json').name")
+            pkg_version=$(node -p "require('./$dir/package.json').version")
+            tag="${pkg_name}@${pkg_version}"
+            if ! git ls-remote --tags origin "$tag" | grep -q "$tag"; then
+              git tag "$tag"
+              git push origin "$tag"
+              gh release create "$tag" --title "${pkg_name} v${pkg_version}" --generate-notes || true
+            fi
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,7 +1,28 @@
 import path from "path";
+import { existsSync } from "fs";
 import { fileURLToPath } from "url";
 import { Language } from "web-tree-sitter";
 import type { Language as LanguageType } from "web-tree-sitter";
+
+/**
+ * Walk up from `startDir` until we find an `assets/grammars/` directory,
+ This handles both:
+ *
+ *  - **Unbundled** (dev):  `src/tree-sitter/`  → two levels up
+ *  - **Bundled** (prod):   `dist/`             → one level up
+ */
+function findGrammarsDir(startDir: string): string {
+  let dir = startDir;
+  while (dir !== path.dirname(dir)) {
+    const candidate = path.join(dir, "assets", "grammars");
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+    dir = path.dirname(dir);
+  }
+  // Fallback: assume bundled layout (one level up from dist/)
+  return path.resolve(startDir, "..", "assets", "grammars");
+}
 
 /**
  * Loads and caches WASM grammar files for tree-sitter.
@@ -15,9 +36,7 @@ export class GrammarLoader {
 
   constructor() {
     const currentDir = path.dirname(fileURLToPath(import.meta.url));
-    // From src/tree-sitter/ → ../../assets/grammars/
-    // From dist/tree-sitter/ → ../../assets/grammars/  (same relative path)
-    this.grammarsDir = path.resolve(currentDir, "..", "..", "assets", "grammars");
+    this.grammarsDir = findGrammarsDir(currentDir);
   }
 
   /**

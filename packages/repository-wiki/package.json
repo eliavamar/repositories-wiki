@@ -15,7 +15,8 @@
     "repository-wiki": "./dist/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "assets"
   ],
   "scripts": {
     "build": "tsc --noEmit && node ../../scripts/bundle.mjs repository-wiki src/cli.ts src/index.ts",

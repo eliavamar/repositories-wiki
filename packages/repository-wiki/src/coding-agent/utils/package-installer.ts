@@ -1,6 +1,15 @@
 import { execSync } from "child_process";
+import { fileURLToPath } from "url";
+import { dirname, resolve } from "path";
 import { logger as defaultLogger } from "@repositories-wiki/common";
 import type { Logger } from "@repositories-wiki/common";
+
+/**
+ * Root directory of this package (where its package.json lives).
+ */
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const CLI_ROOT = resolve(__dirname, "..", "..");
 
 /**
  * Regex that matches valid npm package names (scoped and unscoped).
@@ -72,7 +81,7 @@ export async function ensurePackageInstalled(
   );
 
   try {
-    execSync(`npm install ${packageName}`, {
+    execSync(`npm install --prefix "${CLI_ROOT}" ${packageName}`, {
       stdio: "pipe",
       timeout: 120_000, // 2 minute timeout
     });

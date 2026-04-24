@@ -10,6 +10,16 @@ Repositories Wiki automatically generates structured, interlinked wiki documenta
 
 > Inspired by Andrej Karpathy's [LLM Wiki](https://gist.github.com/karpathy/442a6bf555914893e9891c11519de94f) pattern — the idea that LLMs should **build and maintain persistent knowledge bases** rather than rediscover information from scratch on every query. Repositories Wiki applies this pattern to source code: parse once, compile into a structured wiki, and let every future session start with full context.
 
+### See it in action
+
+<div align="center">
+
+<video src="./packages/repository-wiki/assets/demo.mp4" controls width="700">
+  Your browser does not support the video tag. <a href="./packages/repository-wiki/assets/demo.mp4">Watch the demo</a>.
+</video>
+
+</div>
+
 ---
 
 ## What You Get

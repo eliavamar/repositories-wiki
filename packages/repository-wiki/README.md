@@ -7,6 +7,16 @@ Generate comprehensive, structured wiki documentation from any source code repos
 
 This package provides a CLI and programmatic API that reads a repository's source code, parses it with Tree-sitter, uses LLMs to plan a wiki structure, and generates detailed markdown documentation with architecture diagrams, source citations, and cross-references.
 
+### See it in action
+
+<div align="center">
+
+<video src="./assets/demo.mp4" controls width="700">
+  Your browser does not support the video tag. <a href="./assets/demo.mp4">Watch the demo</a>.
+</video>
+
+</div>
+
 ## What It Produces
 
 Running the tool on a repository generates:

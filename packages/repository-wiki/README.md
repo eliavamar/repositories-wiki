@@ -9,13 +9,11 @@ This package provides a CLI and programmatic API that reads a repository's sourc
 
 ### See it in action
 
-<div align="center">
 
-<video src="./assets/demo.mp4" controls width="700">
-  Your browser does not support the video tag. <a href="./assets/demo.mp4">Watch the demo</a>.
-</video>
 
-</div>
+https://github.com/user-attachments/assets/cdfa1f13-7725-4d91-829d-ae418a0cbc0c
+
+
 
 ## What It Produces
 

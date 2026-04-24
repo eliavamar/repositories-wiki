@@ -14,9 +14,10 @@ Repositories Wiki automatically generates structured, interlinked wiki documenta
 
 <div align="center">
 
-<video src="./packages/repository-wiki/assets/demo.mp4" controls width="700">
-  Your browser does not support the video tag. <a href="./packages/repository-wiki/assets/demo.mp4">Watch the demo</a>.
-</video>
+
+https://github.com/user-attachments/assets/68a5539a-80ee-422c-8421-2826c767fd79
+
+
 
 </div>
 

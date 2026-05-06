@@ -72,6 +72,9 @@ export function generateAgentsMdSection(description: string, outputDirPath: stri
 
 This repository has a pre-generated wiki at \`${outputDirPath}/\` that documents its architecture, modules, and key systems. ${description}
 
+### Why the wiki matters
+The wiki documents cross-cutting flows of this repository that span multiple packages. Consult it to avoid reading dozens of files; keep it updated so future changes aren't based on stale assumptions.
+
 ### When to consult the wiki
 Before exploring multiple files or working on unfamiliar areas, start by reading \`${outputDirPath}/${INDEX_MD_FILENAME}\` to find relevant pages for your task.
 

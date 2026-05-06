@@ -2,6 +2,9 @@
 
 This repository has a pre-generated wiki at `repository-wiki/` that documents its architecture, modules, and key systems. A monorepo that auto-generates comprehensive wiki documentation from source code repositories using LLMs, tree-sitter, and an MCP server.
 
+### Why the wiki matters
+The wiki documents cross-cutting flows of this repository that span multiple packages. Consult it to avoid reading dozens of files; keep it updated so future changes aren't based on stale assumptions.
+
 ### When to consult the wiki
 Before exploring multiple files or working on unfamiliar areas, start by reading `repository-wiki/INDEX.md` to find relevant pages for your task.
 
